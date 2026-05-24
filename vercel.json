@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "bunVersion": "1.x",
+  "installCommand": "bun install --frozen-lockfile",
+  "buildCommand": "bun run build --filter=@elysium/web",
+  "outputDirectory": "apps/web/dist",
+  "devCommand": "bun run web:dev"
+}
