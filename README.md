@@ -1,5 +1,7 @@
 # Elysium
 
+Elysium is my private media center: a local-first place to import, organize, watch, and track movies, series, anime, episodes, downloads, and playback progress.
+
 Elysium is a private, selfhostable local media download hub for personal use.
 
 The goal is to provide one local web app where I can search supported public media sites, open a media page, see every available episode/download option grouped by quality and provider, and download the file directly from the local UI with one click.
