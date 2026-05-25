@@ -315,8 +315,9 @@ function App({
     }
 
     return (
-      episodes.find((episode) => episode.url === selectedEpisodeUrl) ??
-      episodes.at(-1)
+      selectedEpisodeUrl
+        ? episodes.find((episode) => episode.url === selectedEpisodeUrl)
+        : undefined
     );
   }, [episodes, selectedEpisodeUrl, routeEpisodeNumber]);
 
