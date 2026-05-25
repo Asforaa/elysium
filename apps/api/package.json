@@ -46,6 +46,7 @@
     "yauzl": "^3.3.1"
   },
   "portless": {
+    "appPort": 3000,
     "name": "api.elysium",
     "script": "dev:app"
   },

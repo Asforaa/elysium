@@ -2,10 +2,12 @@
   "apps": {
     "apps/web": {
       "name": "elysium",
+      "appPort": 5173,
       "script": "dev:app"
     },
     "apps/api": {
       "name": "api.elysium",
+      "appPort": 3000,
       "script": "dev:app"
     }
   }

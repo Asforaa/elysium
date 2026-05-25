@@ -219,6 +219,10 @@ function resolveApiBaseUrl(): string {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
+  if (typeof window !== 'undefined' && isLoopbackHost(window.location.hostname)) {
+    return `${window.location.protocol}//${window.location.hostname}:3000`;
+  }
+
   if (
     typeof window !== 'undefined' &&
     window.location.hostname.endsWith('elysium.localhost')
@@ -236,4 +240,8 @@ function resolveApiBaseUrl(): string {
   }
 
   return 'http://localhost:3000';
+}
+
+function isLoopbackHost(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
 }

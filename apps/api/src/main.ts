@@ -28,10 +28,7 @@ async function bootstrap() {
 void bootstrap();
 
 function isAllowedDevOrigin(origin: string): boolean {
-  if (
-    origin === 'http://localhost:5173' ||
-    origin === 'http://127.0.0.1:5173'
-  ) {
+  if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/u.test(origin)) {
     return true;
   }
 
