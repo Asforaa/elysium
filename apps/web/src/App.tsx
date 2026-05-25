@@ -63,7 +63,6 @@ function App({
   const [animeQuery, setAnimeQuery] = useState(
     routeAnimeSlug ? humanizeAnimeSlug(routeAnimeSlug) : DEFAULT_ANIME_QUERY,
   );
-  const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null);
   const [selectedEpisodeUrl, setSelectedEpisodeUrl] = useState<string | null>(null);
   const [focusedImage, setFocusedImage] = useState<FocusedImage | null>(null);
   const selectedAnimeId = Number.isFinite(routeAnimeId) ? routeAnimeId : undefined;
@@ -104,10 +103,7 @@ function App({
   });
 
   const searchResults = searchQuery.data ?? EMPTY_SEARCH_RESULTS;
-  const selectedMedia = useMemo(
-    () => searchResults.find((item) => item.url === selectedMediaUrl) ?? searchResults[0],
-    [searchResults, selectedMediaUrl],
-  );
+  const selectedMedia = searchResults[0];
 
   const episodesQuery = useQuery({
     queryKey: ['episodes', selectedMedia?.sourceProvider, selectedMedia?.url],
@@ -140,6 +136,7 @@ function App({
   });
 
   const downloadOptions = downloadOptionsQuery.data ?? [];
+  const episodesLoading = searchQuery.isLoading || episodesQuery.isLoading;
 
   function handleAnimeQueryChange(value: string) {
     setAnimeQuery(value);
@@ -147,7 +144,6 @@ function App({
 
   function handleAnimeSelect(item: AnimeMetadataSearchResult) {
     setAnimeQuery(item.displayTitle);
-    setSelectedMediaUrl(null);
     setSelectedEpisodeUrl(null);
     void navigate({
       params: {
@@ -216,61 +212,32 @@ function App({
           />
         ) : null}
 
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Source Matches</CardTitle>
-              <CardDescription>
-                {sourceSearchTerm
-                  ? `Searching source adapters for "${sourceSearchTerm}"`
-                  : 'Pick an anime'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {searchQuery.isLoading ? (
-                <ResultSkeleton />
-              ) : (
-                searchResults.map((item) => (
-                  <MediaResult
-                    item={item}
-                    key={item.url}
-                    selected={selectedMedia?.url === item.url}
-                    onImageFocus={setFocusedImage}
-                    onSelect={() => {
-                      setSelectedMediaUrl(item.url);
-                      setSelectedEpisodeUrl(null);
-                    }}
-                  />
-                ))
-              )}
-              {searchQuery.isError ? <ErrorText error={searchQuery.error} /> : null}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Episodes</CardTitle>
-              <CardDescription>
-                {selectedMedia ? selectedMedia.title : 'Select a source match'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex max-h-[28rem] flex-col gap-2 overflow-auto">
-              {episodesQuery.isLoading ? (
-                <ResultSkeleton compact />
-              ) : (
-                episodes.map((episode) => (
+        <Card>
+          <CardHeader>
+            <CardTitle>Episodes</CardTitle>
+            <CardDescription>{selectedMedia ? selectedMedia.title : 'Pick an anime'}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {episodesLoading ? <ResultSkeleton compact /> : null}
+            {!episodesLoading && episodes.length ? (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {episodes.map((episode) => (
                   <EpisodeButton
                     episode={episode}
                     key={episode.url}
                     selected={selectedEpisode?.url === episode.url}
                     onSelect={() => setSelectedEpisodeUrl(episode.url)}
                   />
-                ))
-              )}
-              {episodesQuery.isError ? <ErrorText error={episodesQuery.error} /> : null}
-            </CardContent>
-          </Card>
-        </section>
+                ))}
+              </div>
+            ) : null}
+            {!episodesLoading && sourceSearchTerm && !episodes.length ? (
+              <p className="text-sm text-muted-foreground">No episodes found yet.</p>
+            ) : null}
+            {searchQuery.isError ? <ErrorText error={searchQuery.error} /> : null}
+            {episodesQuery.isError ? <ErrorText error={episodesQuery.error} /> : null}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -350,7 +317,7 @@ function RelatedAnimeSection({
       </CardHeader>
       <CardContent>
         {sortedRelations.length ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
             {sortedRelations.map((relation) => (
               <RelatedAnimeCard
                 key={`${relation.kind}-${relation.anime.id}`}
@@ -381,13 +348,13 @@ function RelatedAnimeCard({
   onImageFocus: (image: FocusedImage) => void;
 }) {
   const coverUrl =
+    relation.anime.coverImage?.extraLarge ??
     relation.anime.coverImage?.large ??
-    relation.anime.coverImage?.medium ??
-    relation.anime.coverImage?.extraLarge;
+    relation.anime.coverImage?.medium;
 
   return (
     <div
-      className="rounded-lg border bg-card p-2 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex h-full flex-col gap-3 rounded-lg border bg-card p-3 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       role="button"
       tabIndex={0}
       onClick={() => onAnimeSelect(relation.anime)}
@@ -398,34 +365,34 @@ function RelatedAnimeCard({
         }
       }}
     >
-      <div className="flex gap-3">
-        <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-md border bg-muted">
-          {coverUrl ? (
-            <FocusableImage
-              alt={`${relation.anime.displayTitle} cover`}
-              buttonClassName="h-full w-full rounded-none"
-              imageClassName="h-full w-full object-cover"
-              src={coverUrl}
-              stopPropagation
-              onFocusImage={onImageFocus}
-            />
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border bg-muted">
+        {coverUrl ? (
+          <FocusableImage
+            alt={`${relation.anime.displayTitle} cover`}
+            buttonClassName="h-full w-full rounded-none"
+            imageClassName="h-full w-full object-cover"
+            src={coverUrl}
+            stopPropagation
+            onFocusImage={onImageFocus}
+          />
+        ) : null}
+        <Badge className="absolute left-2 top-2 shadow-sm" variant="secondary">
+          {relation.label}
+        </Badge>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-1">
+          {relation.anime.seasonYear ? (
+            <Badge variant="outline">{relation.anime.seasonYear}</Badge>
           ) : null}
-          <Badge className="absolute left-1 top-1 shadow-sm" variant="secondary">
-            {relation.label}
-          </Badge>
+          {selected ? <Badge>Selected</Badge> : null}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1">
-            {selected ? <Badge>Selected</Badge> : null}
-            {relation.anime.seasonYear ? (
-              <Badge variant="outline">{relation.anime.seasonYear}</Badge>
-            ) : null}
-          </div>
-          <p className="mt-2 line-clamp-3 text-sm font-medium">{relation.anime.displayTitle}</p>
-          {relation.anime.format ? (
-            <p className="mt-1 text-xs text-muted-foreground">{formatToken(relation.anime.format)}</p>
-          ) : null}
-        </div>
+        <p className="line-clamp-3 text-sm font-medium leading-snug">
+          {relation.anime.displayTitle}
+        </p>
+        {relation.anime.format ? (
+          <p className="text-xs text-muted-foreground">{formatToken(relation.anime.format)}</p>
+        ) : null}
       </div>
     </div>
   );
@@ -674,48 +641,6 @@ function InfoItem({ label, value }: { label: string; value?: string }) {
     <div className="rounded-lg border p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 truncate font-medium">{value}</p>
-    </div>
-  );
-}
-
-function MediaResult({
-  item,
-  selected,
-  onImageFocus,
-  onSelect,
-}: {
-  item: MediaSearchResult;
-  selected: boolean;
-  onImageFocus: (image: FocusedImage) => void;
-  onSelect: () => void;
-}) {
-  return (
-    <div className="w-full rounded-lg border p-3 text-left hover:bg-accent">
-      <div className="flex items-start gap-3">
-        {item.posterUrl ? (
-          <FocusableImage
-            alt={`${item.title} poster`}
-            buttonClassName="h-20 w-14"
-            imageClassName="h-20 w-14 rounded-md border object-cover"
-            src={item.posterUrl}
-            onFocusImage={onImageFocus}
-          />
-        ) : null}
-        <button
-          className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          type="button"
-          onClick={onSelect}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-medium">{item.title}</h2>
-            {selected ? <Badge>Selected</Badge> : null}
-            <Badge variant="outline">{item.kind}</Badge>
-          </div>
-          {item.description ? (
-            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.description}</p>
-          ) : null}
-        </button>
-      </div>
     </div>
   );
 }
