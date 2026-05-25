@@ -1337,6 +1337,7 @@ function AnimeDetailPanel({
             src={anime.bannerImage ?? ''}
             onFocusImage={onImageFocus}
           />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-card via-card/80 to-transparent" />
         </div>
       ) : null}
       <div className="relative z-10 grid gap-4 p-4 md:grid-cols-[12rem_minmax(0,1fr)] md:p-6">
