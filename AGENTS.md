@@ -82,6 +82,10 @@ Backend:
 - Backend owns scraping/parsing, provider adapters, host resolvers, download queue, filesystem writes, persistence, and settings.
 - Backend also owns metadata provider adapters such as AniList.
 - Backend should expose combined source-provider operations where useful, such as `/providers/search`, so the frontend does not have to hardcode one source adapter.
+- Treat Gopeed as an external download worker behind an HTTP API boundary, not as vendored/embedded Go core, unless the user explicitly revisits that architecture.
+- Resolve host-provider pages through `apps/api/src/download-engine` before handing a direct file URL to any download worker.
+- Do not solve or bypass host-provider automated security checks; return an unsupported/failed resolver state instead.
+- Source providers are code adapters. Host resolvers are shared and should be reused by every source provider that returns the same host links.
 
 Monorepo:
 
@@ -119,6 +123,9 @@ Provider smoke tests:
 - AniList CLI smoke test:
   - `bun run --filter @elysium/api smoke:anilist -- Akane-banashi`
 - This should search AniList, fetch detailed anime metadata, and print characters.
+- Download connection CLI smoke test:
+  - `bun run --filter @elysium/api smoke:download-connections -- Akane-banashi 5`
+- This should search every registered source adapter, choose an episode, extract host options, and attempt to resolve final file connections through shared host resolvers.
 
 Linting:
 
@@ -158,6 +165,9 @@ Long-term source strategy:
 - Prefer internal source-provider redundancy over manual/open-external fallback flows.
 - Fan-out source searches through the backend provider registry so adding a new source adapter can automatically participate in search flows.
 - Do not optimize for "manual/open external fallback"; the user specifically said we do not want to optimize for that.
+- Add source providers as explicit adapters because search pages, media pages, and episode/download extraction differ per site.
+- Keep host-provider resolvers generic so a MediaFire, Google Drive, Mega, or other host implementation works for any source provider that emits that host link.
+- A config/UI-assisted source-adapter builder may be useful later after several source providers exist, but fully automatic arbitrary-site integration is expected to be brittle.
 
 ## First Main Source Provider
 

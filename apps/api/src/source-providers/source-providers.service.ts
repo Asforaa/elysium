@@ -15,6 +15,10 @@ export class SourceProvidersService {
     );
   }
 
+  listAdapters() {
+    return Array.from(this.adapters.values());
+  }
+
   async searchAll(query: string): Promise<MediaSearchResult[]> {
     const searchResults = await Promise.all(
       Array.from(this.adapters.values()).map(async (adapter) => {

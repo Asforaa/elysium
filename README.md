@@ -96,6 +96,7 @@ bun run db:ping
 bun run db:stop
 bun run --filter @elysium/api smoke:witanime -- Akane-banashi 5
 bun run --filter @elysium/api smoke:anilist -- Akane-banashi
+bun run --filter @elysium/api smoke:download-connections -- Akane-banashi 5
 ```
 
 `bun run lint` is advisory. Use `bun run check` and `bun run build` as the hard correctness gates, and reserve `bun run lint:strict` for intentional cleanup passes.
@@ -105,6 +106,31 @@ Recommended later additions:
 - Shared TypeScript types between frontend and backend.
 - A background worker or queue module for download jobs.
 - Provider-specific resolver modules.
+
+## Download Worker Direction
+
+Gopeed is the preferred first download worker candidate, but Elysium should talk to it as an external worker through its HTTP API instead of embedding Gopeed core into the NestJS app.
+
+Reasoning:
+
+- Gopeed already provides the useful download execution layer.
+- Keeping it as a separate local worker keeps the TypeScript backend simple.
+- The API boundary avoids coupling Elysium to Gopeed's Go internals and license/runtime choices.
+- Elysium still owns source search, host-page resolution, queue state, metadata, persistence, and UI.
+
+The current shape is:
+
+```text
+Source adapter -> Host resolver -> Resolved direct file URL -> Gopeed/local worker -> Local file
+```
+
+The first smoke test for this layer is:
+
+```bash
+bun run --filter @elysium/api smoke:download-connections -- Akane-banashi 5
+```
+
+This fetches current source-provider options, resolves the final file connection where possible, and prints the direct URL/filename/size metadata without starting a real persisted download job yet.
 
 ## Why Backend First-Class Matters
 
