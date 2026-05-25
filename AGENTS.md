@@ -114,12 +114,33 @@ Monorepo:
 
 Local database:
 
-- Use the project-local PostgreSQL instance managed by the Bun scripts.
-- Default DB URL is `postgresql://asforaa@127.0.0.1:55432/elysium` on this machine.
-- Start it with `bun run db:start`.
-- Check it with `bun run db:ping`.
-- Stop it with `bun run db:stop`.
-- The data directory lives under `.local/postgres` and must stay untracked.
+- Current development uses the homeserver PostgreSQL instance over Tailscale.
+- The root `.env` and `apps/api/.env` are ignored and should contain the real `DATABASE_URL`.
+- `apps/api/.env` exists because `bun run --filter @elysium/api ...` runs from the API package directory and does not reliably load the root `.env`.
+- Current homeserver DB endpoint is Tailscale-bound at `100.67.83.68:55432`.
+- Current homeserver Postgres container is `elysium-postgres`.
+- Default fallback DB URL is `postgresql://asforaa@127.0.0.1:55432/elysium` on this machine.
+- Start the old project-local Postgres fallback with `bun run db:start`.
+- Check the active configured DB with `bun run db:ping`.
+- Stop the old project-local Postgres fallback with `bun run db:stop`.
+- The old project-local data directory lives under `.local/postgres` and must stay untracked.
+- Run migrations with `bun run --filter @elysium/api db:migrate`.
+
+Homeserver media:
+
+- The homeserver media root was renamed from `/home/asforaauwu/Movies and series` to `/home/asforaauwu/Elysium Media`.
+- Local development mounts that folder at `/home/asforaa/homeserver/Elysium Media`.
+- Production should use the native server path and local development should use the mounted path.
+- Store media paths relative to the media root whenever possible.
+- The seeded media root key is `homeserver-main`.
+- Treat existing media files as read-only source material until the user explicitly approves a dry-run rename/move plan.
+- Desired future structure is one top-level folder per real media entity, with metadata IDs in names once matched, for example `Anime/Re ZERO -Starting Life in Another World- Season 2 [anilist-108632]/...`.
+- Group related anime through AniList relations in the UI instead of relying on nested franchise folders.
+- Library notes such as `Anime/Series/Re Zero/Watch Order.txt` should import into editable app notes while leaving source files untouched by default.
+- Media library scanner CLI:
+  - `bun run --filter @elysium/api library:scan`
+  - It is dry-run/read-only for media files.
+  - It writes private reports under ignored `/docs/import-reports`.
 
 Portless:
 
@@ -144,6 +165,15 @@ Provider smoke tests:
 - Completed local download finalization:
   - `bun run --filter @elysium/api downloads:finalize`
 - This should re-apply archive extraction and canonical filename rules to already completed local files.
+- Media library scanner:
+  - `bun run --filter @elysium/api library:scan`
+- This should scan the configured media root read-only and write private reports under ignored `/docs/import-reports`.
+
+Private docs:
+
+- `/docs` exists for private, sensitive project knowledge and generated import reports.
+- `/docs` is intentionally gitignored; do not force-add it unless the user explicitly asks.
+- Future agents should read `/docs/README.md` when present before changing provider, downloader, database, media-library, or homeserver setup.
 
 Linting:
 

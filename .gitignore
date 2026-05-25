@@ -11,4 +11,5 @@ coverage/
 *.log
 downloads/
 storage/
+docs/
 .DS_Store

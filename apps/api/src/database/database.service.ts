@@ -18,7 +18,7 @@ export class DatabaseService implements OnModuleDestroy, OnModuleInit {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
 
   async onModuleInit() {
-    await this.runMigrations();
+    await this.migrate();
   }
 
   query<T extends QueryResultRow = QueryResultRow>(
@@ -69,7 +69,7 @@ export class DatabaseService implements OnModuleDestroy, OnModuleInit {
     await this.pool.end();
   }
 
-  private async runMigrations() {
+  async migrate() {
     await this.transaction(async (client) => {
       await client.query(`
         create table if not exists elysium_migrations (
@@ -278,6 +278,119 @@ const DATABASE_MIGRATIONS = [
       `
         create index if not exists playback_progress_continue_idx
           on playback_progress (completed, updated_at desc)
+      `,
+    ],
+  },
+  {
+    id: '004_media_library_import_foundation',
+    statements: [
+      `
+        create table if not exists media_roots (
+          id uuid primary key,
+          key text not null unique,
+          name text not null,
+          local_path text,
+          server_path text,
+          active boolean not null default true,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now()
+        )
+      `,
+      `
+        create table if not exists media_import_runs (
+          id uuid primary key,
+          media_root_id uuid references media_roots(id) on delete set null,
+          root_path text not null,
+          mode text not null,
+          status text not null,
+          summary jsonb,
+          started_at timestamptz not null default now(),
+          completed_at timestamptz,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now()
+        )
+      `,
+      `
+        create index if not exists media_import_runs_started_at_idx
+          on media_import_runs (started_at desc)
+      `,
+      `
+        create table if not exists media_entities (
+          id uuid primary key,
+          metadata_provider text,
+          metadata_id integer,
+          media_kind text not null,
+          display_title text not null,
+          canonical_title text,
+          folder_name text,
+          relative_folder_path text,
+          match_status text not null default 'unmatched',
+          match_confidence double precision,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now(),
+          unique (metadata_provider, metadata_id)
+        )
+      `,
+      `
+        create index if not exists media_entities_title_idx
+          on media_entities (display_title)
+      `,
+      `
+        create table if not exists media_library_files (
+          id uuid primary key,
+          media_root_id uuid references media_roots(id) on delete set null,
+          import_run_id uuid references media_import_runs(id) on delete set null,
+          media_entity_id uuid references media_entities(id) on delete set null,
+          relative_path text not null,
+          absolute_path text,
+          filename text not null,
+          extension text not null,
+          file_kind text not null,
+          category text not null,
+          size_bytes bigint,
+          modified_at timestamptz,
+          guessed_title text,
+          parsed_season_number integer,
+          parsed_part_number integer,
+          parsed_episode_number integer,
+          parsed_quality text,
+          parsed_source text,
+          canonical_relative_path text,
+          status text not null default 'discovered',
+          issues jsonb not null default '[]'::jsonb,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now(),
+          unique (media_root_id, relative_path)
+        )
+      `,
+      `
+        create index if not exists media_library_files_entity_idx
+          on media_library_files (media_entity_id)
+      `,
+      `
+        create index if not exists media_library_files_category_idx
+          on media_library_files (category)
+      `,
+      `
+        create table if not exists media_library_notes (
+          id uuid primary key,
+          media_root_id uuid references media_roots(id) on delete set null,
+          import_run_id uuid references media_import_runs(id) on delete set null,
+          media_entity_id uuid references media_entities(id) on delete set null,
+          relative_path text not null,
+          title text not null,
+          note_kind text not null,
+          content text not null,
+          editable boolean not null default true,
+          original_modified_at timestamptz,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now(),
+          unique (media_root_id, relative_path)
+        )
+      `,
+      `
+        create index if not exists media_library_notes_entity_idx
+          on media_library_notes (media_entity_id)
       `,
     ],
   },
