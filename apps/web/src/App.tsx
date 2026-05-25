@@ -1403,12 +1403,16 @@ function getDownloadProgressPercent(job: DownloadJob) {
 }
 
 function formatDownloadEngine(job: DownloadJob) {
-  if (job.engine === 'gopeed') {
-    return 'Gopeed';
+  if (job.engine === 'local-segmented') {
+    return 'Local segmented';
   }
 
-  if (job.engine === 'local-fetch') {
-    return 'Local fallback';
+  if (job.engine === 'local-http') {
+    return 'Local HTTP';
+  }
+
+  if (job.engine === 'local-mega') {
+    return 'Local Mega';
   }
 
   return undefined;

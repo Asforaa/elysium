@@ -109,27 +109,25 @@ Recommended later additions:
 
 ## Download Worker Direction
 
-Gopeed is the preferred first download worker candidate, but Elysium should talk to it as an external worker through its HTTP API instead of embedding Gopeed core into the NestJS app.
+Gopeed is out of scope for now. Elysium owns the active download worker inside the NestJS backend.
 
 Reasoning:
 
-- Gopeed already provides the useful download execution layer.
-- Keeping it as a separate local worker keeps the TypeScript backend simple.
-- The API boundary avoids coupling Elysium to Gopeed's Go internals and license/runtime choices.
-- Elysium still owns source search, host-page resolution, queue state, metadata, persistence, and UI.
+- Host resolvers already need provider-specific headers, cookies, and expiry handling.
+- A local in-code worker keeps download state, filesystem writes, and progress tracking in one place.
+- The current worker uses concurrent HTTP range requests when a host supports `Range`, and falls back to a normal stream when it does not.
+- Mega stays on a custom local path through `megajs` because Mega file URLs are encrypted chunk streams, not plain direct HTTP links.
 
 The current shape is:
 
 ```text
-Source adapter -> Host resolver -> Resolved direct file URL -> Gopeed/local worker -> Local file
+Source adapter -> Host resolver -> Local downloader -> Local file
 ```
 
 Runtime knobs:
 
-- `GOPEED_BASE_URL` defaults to `http://127.0.0.1:9999`.
-- `GOPEED_API_TOKEN` is sent as Gopeed's `X-Api-Token` header when set.
 - `ELYSIUM_DOWNLOAD_DIR` controls where the backend saves files.
-- `ELYSIUM_DOWNLOAD_ENGINE=local` forces the built-in stream downloader instead of trying Gopeed first.
+- `ELYSIUM_DOWNLOAD_CONNECTIONS` controls HTTP range-download concurrency. It defaults to `6` and is clamped between `1` and `16`.
 
 The app currently creates in-memory download jobs through the local API:
 

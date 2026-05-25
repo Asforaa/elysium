@@ -82,14 +82,13 @@ Backend:
 - Backend owns scraping/parsing, provider adapters, host resolvers, download queue, filesystem writes, persistence, and settings.
 - Backend also owns metadata provider adapters such as AniList.
 - Backend should expose combined source-provider operations where useful, such as `/providers/search`, so the frontend does not have to hardcode one source adapter.
-- Treat Gopeed as an external download worker behind an HTTP API boundary, not as vendored/embedded Go core, unless the user explicitly revisits that architecture.
-- Resolve host-provider pages through `apps/api/src/download-engine` before handing a direct file URL to any download worker.
+- Gopeed is out of scope for now. Do not reintroduce it unless the user explicitly asks to revisit that architecture.
+- Resolve host-provider pages through `apps/api/src/download-engine` before handing the result to the local downloader.
 - Do not solve CAPTCHAs, logins, paywalls, or private links. Public first-party client flows that only require the same page JS to finish loading can be mirrored in a resolver when the direct browser flow is verified first.
 - Source providers are code adapters. Host resolvers are shared and should be reused by every source provider that returns the same host links.
 - Download jobs currently live in the backend `download-jobs` module as an in-memory first pass.
-- Prefer Gopeed when reachable, then fall back to the local stream downloader so the app can still perform real downloads during development.
-- Gopeed API auth uses `X-Api-Token`; configure it with `GOPEED_API_TOKEN` and `GOPEED_BASE_URL`.
-- Use `ELYSIUM_DOWNLOAD_DIR` for the local download destination and `ELYSIUM_DOWNLOAD_ENGINE=local` to force the built-in downloader during smoke tests.
+- Use the local backend downloader for active download execution. It should try concurrent HTTP range downloads when supported, fall back to a normal stream when not, and keep Mega on its custom local `megajs` path.
+- Use `ELYSIUM_DOWNLOAD_DIR` for the local download destination and `ELYSIUM_DOWNLOAD_CONNECTIONS` for segmented HTTP concurrency.
 
 Monorepo:
 

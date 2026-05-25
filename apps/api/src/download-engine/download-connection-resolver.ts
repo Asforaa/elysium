@@ -520,10 +520,9 @@ class DirectHttpResolver implements HostDownloadResolver {
 }
 
 async function fetchText(url: string): Promise<string> {
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: DEFAULT_HEADERS,
     redirect: 'follow',
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -535,14 +534,38 @@ async function fetchText(url: string): Promise<string> {
   return response.text();
 }
 
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  attempts = 3,
+): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < attempts - 1) {
+        await sleep(500 * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
 async function fetchWorkuploadText(url: string, cookieJar: CookieJar) {
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: {
       ...DEFAULT_HEADERS,
       ...(cookieJar.header ? { cookie: cookieJar.header } : {}),
     },
     redirect: 'follow',
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   cookieJar.store(response);
@@ -599,13 +622,12 @@ async function solveWorkuploadSecurityCheck(
 }
 
 async function fetchWorkuploadJson<T>(url: string, cookieJar: CookieJar) {
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: {
       ...DEFAULT_HEADERS,
       accept: 'application/json',
       ...(cookieJar.header ? { cookie: cookieJar.header } : {}),
     },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   cookieJar.store(response);
@@ -710,7 +732,7 @@ async function probeDirectDownload({
   sourceUrl: string;
   url: string;
 }): Promise<ResolvedDownload> {
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: {
       ...DEFAULT_HEADERS,
       range: 'bytes=0-0',
@@ -718,7 +740,6 @@ async function probeDirectDownload({
       ...requestHeaders,
     },
     redirect: 'follow',
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   const contentType = response.headers.get('content-type') ?? '';
 
