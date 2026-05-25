@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Moon, Sun } from 'lucide-react';
+import { useTheme } from 'next-themes';
 import type {
   AnimeMetadataDetails,
   AnimeMetadataSearchResult,
@@ -16,6 +18,7 @@ import {
   searchMedia,
 } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardAction,
@@ -120,15 +123,18 @@ function App() {
   return (
     <main className="min-h-svh bg-background p-4 text-foreground md:p-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-4">
-        <header className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold">Elysium</h1>
-            <Badge variant="secondary">Private media center</Badge>
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold">Elysium</h1>
+              <Badge variant="secondary">Private media center</Badge>
+            </div>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              Search AniList for canonical anime metadata, then match the selected title against
+              source adapters for public download options.
+            </p>
           </div>
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            Search AniList for canonical anime metadata, then match the selected title against
-            source adapters for public download options.
-          </p>
+          <ThemeToggle />
         </header>
 
         <Card>
@@ -252,6 +258,26 @@ function App() {
         </Card>
       </div>
     </main>
+  );
+}
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const nextTheme = isDark ? 'light' : 'dark';
+  const Icon = isDark ? Sun : Moon;
+
+  return (
+    <Button
+      className="w-fit"
+      type="button"
+      variant="outline"
+      onClick={() => setTheme(nextTheme)}
+      aria-label={`Switch to ${nextTheme} theme`}
+    >
+      <Icon />
+      {isDark ? 'Light' : 'Dark'}
+    </Button>
   );
 }
 
