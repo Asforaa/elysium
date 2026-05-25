@@ -909,12 +909,12 @@ function AnimeDetailPanel({
 
   return (
     <section className="relative overflow-hidden rounded-xl border bg-card text-card-foreground">
-      <div className="relative z-0 bg-muted">
+      <div className="relative z-0 h-[clamp(12rem,26vw,20rem)] overflow-hidden bg-muted 2xl:h-auto 2xl:overflow-visible">
         {anime.bannerImage ? (
           <FocusableImage
             alt={`${anime.displayTitle} banner`}
-            buttonClassName="block w-full rounded-none"
-            imageClassName="h-auto w-full object-contain opacity-80"
+            buttonClassName="block h-full w-full rounded-none 2xl:h-auto"
+            imageClassName="h-full w-full object-cover opacity-80 2xl:h-auto 2xl:object-contain"
             src={anime.bannerImage}
             onFocusImage={onImageFocus}
           />
