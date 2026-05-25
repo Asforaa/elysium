@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes';
 import type {
   AnimeMetadataDetails,
   AnimeMetadataSearchResult,
+  AnimeRelation,
   EpisodeSummary,
   MediaSearchResult,
 } from '@elysium/shared';
@@ -80,6 +81,8 @@ function App() {
   });
 
   const animeDetails = animeDetailsQuery.data ?? previewAnime;
+  const animeRelations =
+    animeDetails && hasDetails(animeDetails) ? (animeDetails.relations ?? []) : [];
 
   const searchQuery = useQuery({
     queryKey: ['search', sourceSearchTerm],
@@ -94,8 +97,14 @@ function App() {
   );
 
   const episodesQuery = useQuery({
-    queryKey: ['episodes', selectedMedia?.url],
-    queryFn: () => getEpisodes(selectedMedia?.url ?? ''),
+    queryKey: ['episodes', selectedMedia?.sourceProvider, selectedMedia?.url],
+    queryFn: () => {
+      if (!selectedMedia) {
+        throw new Error('Missing selected media');
+      }
+
+      return getEpisodes(selectedMedia.sourceProvider, selectedMedia.url);
+    },
     enabled: Boolean(selectedMedia?.url),
   });
 
@@ -106,8 +115,14 @@ function App() {
   );
 
   const downloadOptionsQuery = useQuery({
-    queryKey: ['download-options', selectedEpisode?.url],
-    queryFn: () => getDownloadOptions(selectedEpisode?.url ?? ''),
+    queryKey: ['download-options', selectedEpisode?.sourceProvider, selectedEpisode?.url],
+    queryFn: () => {
+      if (!selectedEpisode) {
+        throw new Error('Missing selected episode');
+      }
+
+      return getDownloadOptions(selectedEpisode.sourceProvider, selectedEpisode.url);
+    },
     enabled: Boolean(selectedEpisode?.url),
   });
 
@@ -176,12 +191,23 @@ function App() {
           />
         ) : null}
 
+        {animeDetails ? (
+          <RelatedAnimeSection
+            relations={animeRelations}
+            selectedAnimeId={selectedAnime?.id}
+            onAnimeSelect={handleAnimeSelect}
+            onImageFocus={setFocusedImage}
+          />
+        ) : null}
+
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <Card>
             <CardHeader>
               <CardTitle>Source Matches</CardTitle>
               <CardDescription>
-                {sourceSearchTerm ? `Searching WitAnime for "${sourceSearchTerm}"` : 'Pick an anime'}
+                {sourceSearchTerm
+                  ? `Searching source adapters for "${sourceSearchTerm}"`
+                  : 'Pick an anime'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -274,6 +300,118 @@ function App() {
         <ImageLightbox image={focusedImage} onClose={() => setFocusedImage(null)} />
       ) : null}
     </main>
+  );
+}
+
+function RelatedAnimeSection({
+  relations,
+  selectedAnimeId,
+  onAnimeSelect,
+  onImageFocus,
+}: {
+  relations: AnimeRelation[];
+  selectedAnimeId?: number;
+  onAnimeSelect: (anime: AnimeMetadataSearchResult) => void;
+  onImageFocus: (image: FocusedImage) => void;
+}) {
+  const sortedRelations = useMemo(
+    () =>
+      relations.toSorted((first, second) => {
+        if (first.kind === second.kind) {
+          return (first.anime.seasonYear ?? 0) - (second.anime.seasonYear ?? 0);
+        }
+
+        return first.kind === 'prequel' ? -1 : 1;
+      }),
+    [relations],
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Prequel & Sequel</CardTitle>
+        <CardDescription>Select a related anime to search source providers.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {sortedRelations.length ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {sortedRelations.map((relation) => (
+              <RelatedAnimeCard
+                key={`${relation.kind}-${relation.anime.id}`}
+                relation={relation}
+                selected={selectedAnimeId === relation.anime.id}
+                onAnimeSelect={onAnimeSelect}
+                onImageFocus={onImageFocus}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No prequel or sequel data found.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RelatedAnimeCard({
+  relation,
+  selected,
+  onAnimeSelect,
+  onImageFocus,
+}: {
+  relation: AnimeRelation;
+  selected: boolean;
+  onAnimeSelect: (anime: AnimeMetadataSearchResult) => void;
+  onImageFocus: (image: FocusedImage) => void;
+}) {
+  const coverUrl =
+    relation.anime.coverImage?.large ??
+    relation.anime.coverImage?.medium ??
+    relation.anime.coverImage?.extraLarge;
+
+  return (
+    <div
+      className="rounded-lg border bg-card p-2 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      role="button"
+      tabIndex={0}
+      onClick={() => onAnimeSelect(relation.anime)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onAnimeSelect(relation.anime);
+        }
+      }}
+    >
+      <div className="flex gap-3">
+        <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-md border bg-muted">
+          {coverUrl ? (
+            <FocusableImage
+              alt={`${relation.anime.displayTitle} cover`}
+              buttonClassName="h-full w-full rounded-none"
+              imageClassName="h-full w-full object-cover"
+              src={coverUrl}
+              stopPropagation
+              onFocusImage={onImageFocus}
+            />
+          ) : null}
+          <Badge className="absolute left-1 top-1 shadow-sm" variant="secondary">
+            {relation.label}
+          </Badge>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1">
+            {selected ? <Badge>Selected</Badge> : null}
+            {relation.anime.seasonYear ? (
+              <Badge variant="outline">{relation.anime.seasonYear}</Badge>
+            ) : null}
+          </div>
+          <p className="mt-2 line-clamp-3 text-sm font-medium">{relation.anime.displayTitle}</p>
+          {relation.anime.format ? (
+            <p className="mt-1 text-xs text-muted-foreground">{formatToken(relation.anime.format)}</p>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -572,12 +710,14 @@ function FocusableImage({
   imageClassName,
   onFocusImage,
   src,
+  stopPropagation = false,
 }: {
   alt: string;
   buttonClassName?: string;
   imageClassName?: string;
   onFocusImage: (image: FocusedImage) => void;
   src: string;
+  stopPropagation?: boolean;
 }) {
   return (
     <button
@@ -586,7 +726,13 @@ function FocusableImage({
         buttonClassName,
       )}
       type="button"
-      onClick={() => onFocusImage({ alt, src })}
+      onClick={(event) => {
+        if (stopPropagation) {
+          event.stopPropagation();
+        }
+
+        onFocusImage({ alt, src });
+      }}
     >
       <img
         alt={alt}

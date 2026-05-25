@@ -5,6 +5,7 @@ import type {
   EpisodeSummary,
   MediaSearchResult,
   SourceProvider,
+  SourceProviderId,
 } from '@elysium/shared';
 
 const API_BASE_URL = resolveApiBaseUrl();
@@ -22,15 +23,21 @@ export async function getAnimeMetadata(id: number): Promise<AnimeMetadataDetails
 }
 
 export async function searchMedia(query: string): Promise<MediaSearchResult[]> {
-  return getJson(`/providers/witanime/search?q=${encodeURIComponent(query)}`);
+  return getJson(`/providers/search?q=${encodeURIComponent(query)}`);
 }
 
-export async function getEpisodes(mediaUrl: string): Promise<EpisodeSummary[]> {
-  return getJson(`/providers/witanime/episodes?url=${encodeURIComponent(mediaUrl)}`);
+export async function getEpisodes(
+  providerId: SourceProviderId,
+  mediaUrl: string,
+): Promise<EpisodeSummary[]> {
+  return getJson(`/providers/${providerId}/episodes?url=${encodeURIComponent(mediaUrl)}`);
 }
 
-export async function getDownloadOptions(episodeUrl: string): Promise<DownloadOption[]> {
-  return getJson(`/providers/witanime/download-options?url=${encodeURIComponent(episodeUrl)}`);
+export async function getDownloadOptions(
+  providerId: SourceProviderId,
+  episodeUrl: string,
+): Promise<DownloadOption[]> {
+  return getJson(`/providers/${providerId}/download-options?url=${encodeURIComponent(episodeUrl)}`);
 }
 
 async function getJson<T>(path: string): Promise<T> {

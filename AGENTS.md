@@ -68,6 +68,8 @@ Frontend:
 - AniList drives anime autocomplete and canonical anime metadata in the UI.
 - After an AniList anime is selected, use its canonical romaji/English title to search source providers such as WitAnime.
 - Prefer AniList cover/banner images over source-provider images for primary media artwork.
+- AniList `PREQUEL` and `SEQUEL` relations should render as `Previous` and `Next` anime cards between the metadata panel and source results.
+- Selecting a related AniList anime must flow through the same source-provider search path as autocomplete selection.
 
 Backend:
 
@@ -75,6 +77,7 @@ Backend:
 - Use PostgreSQL.
 - Backend owns scraping/parsing, provider adapters, host resolvers, download queue, filesystem writes, persistence, and settings.
 - Backend also owns metadata provider adapters such as AniList.
+- Backend should expose combined source-provider operations where useful, such as `/providers/search`, so the frontend does not have to hardcode one source adapter.
 
 Monorepo:
 
@@ -149,6 +152,7 @@ Long-term source strategy:
 - Start with WitAnime.
 - Add more main source providers later.
 - Prefer internal source-provider redundancy over manual/open-external fallback flows.
+- Fan-out source searches through the backend provider registry so adding a new source adapter can automatically participate in search flows.
 - Do not optimize for "manual/open external fallback"; the user specifically said we do not want to optimize for that.
 
 ## First Main Source Provider

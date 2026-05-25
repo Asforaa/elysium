@@ -3,6 +3,7 @@ import type {
   AnimeImage,
   AnimeMetadataDetails,
   AnimeMetadataSearchResult,
+  AnimeRelation,
   AnimeTitle,
   AnimeVoiceActor,
   FuzzyDate,
@@ -66,6 +67,7 @@ interface AniListCharacterEdge {
 interface AniListMediaBase {
   id: number;
   idMal?: number | null;
+  type?: string | null;
   title?: AniListTitle | null;
   description?: string | null;
   coverImage?: AniListImage | null;
@@ -97,6 +99,9 @@ interface AniListMediaDetails extends AniListMediaBase {
   characters?: {
     edges?: AniListCharacterEdge[] | null;
   } | null;
+  relations?: {
+    edges?: AniListRelationEdge[] | null;
+  } | null;
   trailer?: {
     id?: string | null;
     site?: string | null;
@@ -107,6 +112,11 @@ interface AniListMediaDetails extends AniListMediaBase {
     episode?: number | null;
     timeUntilAiring?: number | null;
   } | null;
+}
+
+interface AniListRelationEdge {
+  relationType?: string | null;
+  node?: AniListMediaBase | null;
 }
 
 interface AniListGraphqlResponse<T> {
@@ -122,6 +132,7 @@ const SEARCH_QUERY = `
       media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
         id
         idMal
+        type
         title {
           romaji
           english
@@ -162,6 +173,7 @@ const DETAILS_QUERY = `
     Media(id: $id, type: ANIME) {
       id
       idMal
+      type
       title {
         romaji
         english
@@ -238,6 +250,46 @@ const DETAILS_QUERY = `
             image {
               medium
             }
+            siteUrl
+          }
+        }
+      }
+      relations {
+        edges {
+          relationType(version: 2)
+          node {
+            id
+            idMal
+            type
+            title {
+              romaji
+              english
+              native
+              userPreferred
+            }
+            description(asHtml: false)
+            coverImage {
+              extraLarge
+              large
+              medium
+              color
+            }
+            bannerImage
+            episodes
+            duration
+            format
+            status
+            season
+            seasonYear
+            startDate {
+              year
+              month
+              day
+            }
+            genres
+            synonyms
+            averageScore
+            popularity
             siteUrl
           }
         }
@@ -368,6 +420,9 @@ export class AniListMetadataAdapter implements MetadataProviderAdapter {
           spoiler: tag.isMediaSpoiler ?? undefined,
         })) ?? [],
       characters: normalizeCharacters(media.characters?.edges),
+      relations: normalizeRelations(media.relations?.edges, (relatedAnime) =>
+        this.toSearchResult(relatedAnime),
+      ),
       trailer: media.trailer
         ? {
             id: media.trailer.id ?? undefined,
@@ -489,6 +544,37 @@ function normalizeVoiceActors(
       return voiceActor;
     })
     .filter((actor): actor is AnimeVoiceActor => Boolean(actor));
+}
+
+function normalizeRelations(
+  edges: AniListRelationEdge[] | null | undefined,
+  toSearchResult: (media: AniListMediaBase) => AnimeMetadataSearchResult,
+): AnimeRelation[] {
+  return (edges ?? [])
+    .map((edge): AnimeRelation | null => {
+      if (!edge.node || edge.node.type !== 'ANIME') {
+        return null;
+      }
+
+      if (edge.relationType === 'PREQUEL') {
+        return {
+          kind: 'prequel',
+          label: 'Previous',
+          anime: toSearchResult(edge.node),
+        };
+      }
+
+      if (edge.relationType === 'SEQUEL') {
+        return {
+          kind: 'sequel',
+          label: 'Next',
+          anime: toSearchResult(edge.node),
+        };
+      }
+
+      return null;
+    })
+    .filter((relation): relation is AnimeRelation => Boolean(relation));
 }
 
 function normalizeNextAiringEpisode(

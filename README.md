@@ -65,6 +65,7 @@ Metadata:
 - AniList is the source of truth for anime names, episode counts, artwork, descriptions, genres, studios, characters, and other canonical anime metadata.
 - The frontend uses AniList autocomplete first.
 - After selecting an AniList entry, Elysium uses the selected anime title to search source/download adapters like WitAnime.
+- AniList prequel/sequel relations appear as `Previous` and `Next` cards, and selecting one triggers the same source-adapter search flow.
 
 Current app packages:
 
@@ -135,6 +136,7 @@ Provider discovery:
 - Search AniList with autocomplete.
 - Use AniList as the canonical anime metadata source.
 - Show AniList title, descriptions, cover/banner artwork, metadata, genres, studios, and characters.
+- Show AniList prequel/sequel relations between anime metadata and source results.
 - Search supported main providers.
 - Show search results with title, image, type/status, and source provider.
 - Open a media item from search results.
@@ -157,6 +159,7 @@ Provider adapter system:
 
 - Source providers should be pluggable.
 - Host provider resolvers should be pluggable.
+- Source-provider search should fan out through the backend registry instead of being hardcoded in the frontend.
 - A source provider returns structured download options.
 - A host resolver turns a host page URL into a direct downloadable file or a supported command/engine job.
 - If one source provider fails later, Elysium should be able to try another source provider internally.

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { SourceProviderId } from '@elysium/shared';
+import type { MediaSearchResult, SourceProviderId } from '@elysium/shared';
 import { WitAnimeSourceAdapter } from './witanime/witanime-source.adapter';
 import type { SourceProviderAdapter } from './source-provider-adapter';
 
@@ -13,6 +13,20 @@ export class SourceProvidersService {
     return Array.from(this.adapters.values()).map(
       (adapter) => adapter.provider,
     );
+  }
+
+  async searchAll(query: string): Promise<MediaSearchResult[]> {
+    const searchResults = await Promise.all(
+      Array.from(this.adapters.values()).map(async (adapter) => {
+        try {
+          return await adapter.search(query);
+        } catch {
+          return [];
+        }
+      }),
+    );
+
+    return searchResults.flat();
   }
 
   getAdapter(providerId: SourceProviderId): SourceProviderAdapter {

@@ -124,6 +124,16 @@ export interface NextAiringEpisode {
   timeUntilAiringSeconds: number;
 }
 
+export type AnimeRelationKind = "prequel" | "sequel";
+
+export type AnimeRelationLabel = "Previous" | "Next";
+
+export interface AnimeRelation {
+  kind: AnimeRelationKind;
+  label: AnimeRelationLabel;
+  anime: AnimeMetadataSearchResult;
+}
+
 export interface AnimeMetadataDetails extends AnimeMetadataSearchResult {
   meanScore?: number;
   favourites?: number;
@@ -133,6 +143,7 @@ export interface AnimeMetadataDetails extends AnimeMetadataSearchResult {
   studios: AnimeStudio[];
   tags: AnimeTag[];
   characters: AnimeCharacter[];
+  relations: AnimeRelation[];
   trailer?: AnimeTrailer;
   nextAiringEpisode?: NextAiringEpisode;
 }

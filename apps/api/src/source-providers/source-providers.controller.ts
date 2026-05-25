@@ -17,6 +17,15 @@ export class SourceProvidersController {
     return this.sourceProviders.listProviders();
   }
 
+  @Get('search')
+  searchAll(@Query('q') query?: string) {
+    if (!query?.trim()) {
+      throw new BadRequestException('Missing search query');
+    }
+
+    return this.sourceProviders.searchAll(query);
+  }
+
   @Get(':providerId/search')
   search(
     @Param('providerId') providerId: SourceProviderId,
