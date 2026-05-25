@@ -23,16 +23,21 @@ export interface AuthSession {
   user?: AuthUser;
 }
 
+export interface AuthCredentials {
+  email?: string;
+  name?: string;
+}
+
 export async function getAuthSession(): Promise<AuthSession> {
   return getJson('/auth/session');
 }
 
-export async function loginUser(): Promise<AuthSession> {
-  return sendJson('/auth/login', {});
+export async function loginUser(credentials: AuthCredentials = {}): Promise<AuthSession> {
+  return sendJson('/auth/login', credentials);
 }
 
-export async function signupUser(): Promise<AuthSession> {
-  return sendJson('/auth/signup', {});
+export async function signupUser(credentials: AuthCredentials = {}): Promise<AuthSession> {
+  return sendJson('/auth/signup', credentials);
 }
 
 export async function logoutUser(): Promise<AuthSession> {

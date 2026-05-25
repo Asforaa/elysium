@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ComponentProps, SyntheticEvent } from 'react';
+import type { ComponentProps, FormEvent, SyntheticEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import {
@@ -60,6 +60,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -110,6 +119,8 @@ type SidebarNavItem = {
   icon: LucideIcon;
   title: string;
 };
+
+type AuthDialogMode = 'login' | 'signup';
 
 type FocusedImage = {
   alt: string;
@@ -595,6 +606,9 @@ function RelatedAnimeCard({
 }
 
 function AccountControls() {
+  const [authDialogMode, setAuthDialogMode] = useState<AuthDialogMode | null>(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authName, setAuthName] = useState('');
   const authSessionQuery = useQuery({
     queryKey: ['auth', 'session'],
     queryFn: getAuthSession,
@@ -603,12 +617,14 @@ function AccountControls() {
   const loginMutation = useMutation({
     mutationFn: loginUser,
     onSuccess: () => {
+      setAuthDialogMode(null);
       void authSessionQuery.refetch();
     },
   });
   const signupMutation = useMutation({
     mutationFn: signupUser,
     onSuccess: () => {
+      setAuthDialogMode(null);
       void authSessionQuery.refetch();
     },
   });
@@ -626,26 +642,113 @@ function AccountControls() {
     loginMutation.isPending ||
     signupMutation.isPending ||
     logoutMutation.isPending;
+  const activeAuthMutation = authDialogMode === 'signup' ? signupMutation : loginMutation;
+  const authDialogTitle = authDialogMode === 'signup' ? 'Create account' : 'Login';
+  const authDialogDescription =
+    authDialogMode === 'signup'
+      ? 'Create a local Elysium account for this private self-hosted instance.'
+      : 'Sign in to this local Elysium instance.';
+
+  function openAuthDialog(mode: AuthDialogMode) {
+    loginMutation.reset();
+    signupMutation.reset();
+    setAuthDialogMode(mode);
+  }
+
+  function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const credentials = {
+      email: authEmail,
+      name: authName,
+    };
+
+    if (authDialogMode === 'signup') {
+      signupMutation.mutate(credentials);
+      return;
+    }
+
+    loginMutation.mutate(credentials);
+  }
 
   if (!user) {
     return (
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          disabled={busy}
-          type="button"
-          variant="outline"
-          onClick={() => loginMutation.mutate()}
-        >
-          Login
-        </Button>
-        <Button
-          disabled={busy}
-          type="button"
-          onClick={() => signupMutation.mutate()}
-        >
-          Sign up
-        </Button>
-      </div>
+      <Dialog
+        open={authDialogMode !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAuthDialogMode(null);
+          }
+        }}
+      >
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            disabled={busy}
+            type="button"
+            variant="outline"
+            onClick={() => openAuthDialog('login')}
+          >
+            Login
+          </Button>
+          <Button
+            disabled={busy}
+            type="button"
+            onClick={() => openAuthDialog('signup')}
+          >
+            Sign up
+          </Button>
+        </div>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{authDialogTitle}</DialogTitle>
+            <DialogDescription>{authDialogDescription}</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleAuthSubmit}>
+            {authDialogMode === 'signup' ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="auth-name">
+                  Name
+                </label>
+                <Input
+                  autoComplete="name"
+                  id="auth-name"
+                  placeholder="Asforaa"
+                  value={authName}
+                  onChange={(event) => setAuthName(event.target.value)}
+                />
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="auth-email">
+                Email
+              </label>
+              <Input
+                autoComplete="email"
+                id="auth-email"
+                placeholder="asforaa@elysium.local"
+                type="email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+              />
+            </div>
+            {activeAuthMutation.isError ? (
+              <p className="text-sm text-destructive">
+                {activeAuthMutation.error.message}
+              </p>
+            ) : null}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button disabled={busy} type="button" variant="outline">
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button disabled={busy} type="submit">
+                {activeAuthMutation.isPending ? 'Working...' : authDialogTitle}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     );
   }
 
