@@ -187,4 +187,44 @@ const DATABASE_MIGRATIONS = [
       `,
     ],
   },
+  {
+    id: '002_auth_persistence',
+    statements: [
+      `
+        create table if not exists auth_users (
+          id uuid primary key,
+          email text not null unique,
+          name text not null,
+          initials text not null,
+          profile_photo_data_url text,
+          password_hash text not null,
+          password_salt text not null,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now()
+        )
+      `,
+      `
+        create index if not exists auth_users_email_idx
+          on auth_users (email)
+      `,
+      `
+        create table if not exists auth_sessions (
+          id uuid primary key,
+          user_id uuid not null references auth_users(id) on delete cascade,
+          expires_at timestamptz not null,
+          last_seen_at timestamptz not null default now(),
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now()
+        )
+      `,
+      `
+        create index if not exists auth_sessions_user_id_idx
+          on auth_sessions (user_id)
+      `,
+      `
+        create index if not exists auth_sessions_expires_at_idx
+          on auth_sessions (expires_at)
+      `,
+    ],
+  },
 ];

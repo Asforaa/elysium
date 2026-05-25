@@ -1,12 +1,12 @@
 import {
   randomBytes,
-  randomUUID,
   scryptSync,
   timingSafeEqual,
 } from 'node:crypto';
 import {
   BadRequestException,
   Injectable,
+  OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
 import type {
@@ -14,25 +14,27 @@ import type {
   AuthSessionResponse,
   AuthUser,
 } from './auth.types';
+import {
+  AuthRepository,
+  type StoredAuthUser,
+} from './auth.repository';
 
 const AUTH_COOKIE_NAME = 'elysium_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const PASSWORD_KEY_LENGTH = 64;
 const MAX_PROFILE_PHOTO_DATA_URL_LENGTH = 1_500_000;
 
-interface StoredAuthUser extends AuthUser {
-  passwordHash: string;
-  passwordSalt: string;
-}
-
 @Injectable()
-export class AuthService {
-  private readonly sessions = new Map<string, AuthUser>();
-  private readonly users = new Map<string, StoredAuthUser>();
+export class AuthService implements OnModuleInit {
+  constructor(private readonly authRepository: AuthRepository) {}
 
-  login(credentials?: AuthCredentials) {
+  async onModuleInit() {
+    await this.authRepository.deleteExpiredSessions();
+  }
+
+  async login(credentials?: AuthCredentials) {
     const { email, password } = requireCredentials(credentials);
-    const user = this.users.get(email);
+    const user = await this.authRepository.findUserByEmail(email);
 
     if (!user || !verifyPassword(password, user)) {
       throw new UnauthorizedException('Invalid email or password');
@@ -41,11 +43,11 @@ export class AuthService {
     return this.createSession(user);
   }
 
-  signup(credentials?: AuthCredentials) {
+  async signup(credentials?: AuthCredentials) {
     const { email, password } = requireCredentials(credentials);
     const name =
       cleanValue(credentials?.name) ?? email.split('@')[0] ?? 'Elysium';
-    const existingUser = this.users.get(email);
+    const existingUser = await this.authRepository.findUserByEmail(email);
 
     if (existingUser) {
       throw new BadRequestException(
@@ -54,9 +56,8 @@ export class AuthService {
     }
 
     const passwordSalt = randomBytes(16).toString('hex');
-    const user = {
+    const user = await this.authRepository.createUser({
       email,
-      id: randomUUID(),
       initials: createInitials(name, email),
       name,
       passwordHash: hashPassword(password, passwordSalt),
@@ -64,18 +65,17 @@ export class AuthService {
       profilePhotoDataUrl: cleanProfilePhotoDataUrl(
         credentials?.profilePhotoDataUrl,
       ),
-    };
-
-    this.users.set(email, user);
+    });
 
     return this.createSession(user);
   }
 
-  private createSession(storedUser: StoredAuthUser) {
+  private async createSession(storedUser: StoredAuthUser) {
     const user = toPublicUser(storedUser);
-    const sessionId = randomUUID();
-
-    this.sessions.set(sessionId, user);
+    const sessionId = await this.authRepository.createSession(
+      user.id,
+      new Date(Date.now() + SESSION_TTL_SECONDS * 1000),
+    );
 
     return {
       cookie: this.createSessionCookie(sessionId),
@@ -83,22 +83,24 @@ export class AuthService {
     };
   }
 
-  getSession(cookieHeader?: string): AuthSessionResponse {
+  async getSession(cookieHeader?: string): Promise<AuthSessionResponse> {
     const sessionId = getCookieValue(cookieHeader, AUTH_COOKIE_NAME);
-    const user = sessionId ? this.sessions.get(sessionId) : undefined;
+    const storedUser = sessionId
+      ? await this.authRepository.findUserBySession(sessionId)
+      : undefined;
 
-    if (!user) {
+    if (!storedUser) {
       return { authenticated: false };
     }
 
-    return this.toAuthenticatedResponse(user);
+    return this.toAuthenticatedResponse(toPublicUser(storedUser));
   }
 
-  clearSession(cookieHeader?: string) {
+  async clearSession(cookieHeader?: string) {
     const sessionId = getCookieValue(cookieHeader, AUTH_COOKIE_NAME);
 
     if (sessionId) {
-      this.sessions.delete(sessionId);
+      await this.authRepository.deleteSession(sessionId);
     }
 
     return {

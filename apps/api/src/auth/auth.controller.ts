@@ -8,16 +8,16 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Get('session')
-  getSession(@Req() request: Request): AuthSessionResponse {
+  getSession(@Req() request: Request): Promise<AuthSessionResponse> {
     return this.authService.getSession(request.headers.cookie);
   }
 
   @Post('login')
-  login(
+  async login(
     @Body() credentials: AuthCredentials | undefined,
     @Res({ passthrough: true }) response: Response,
-  ): AuthSessionResponse {
-    const session = this.authService.login(credentials);
+  ): Promise<AuthSessionResponse> {
+    const session = await this.authService.login(credentials);
 
     response.setHeader('Set-Cookie', session.cookie);
 
@@ -25,11 +25,11 @@ export class AuthController {
   }
 
   @Post('signup')
-  signup(
+  async signup(
     @Body() credentials: AuthCredentials | undefined,
     @Res({ passthrough: true }) response: Response,
-  ): AuthSessionResponse {
-    const session = this.authService.signup(credentials);
+  ): Promise<AuthSessionResponse> {
+    const session = await this.authService.signup(credentials);
 
     response.setHeader('Set-Cookie', session.cookie);
 
@@ -37,11 +37,11 @@ export class AuthController {
   }
 
   @Post('logout')
-  logout(
+  async logout(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): AuthSessionResponse {
-    const session = this.authService.clearSession(request.headers.cookie);
+  ): Promise<AuthSessionResponse> {
+    const session = await this.authService.clearSession(request.headers.cookie);
 
     response.setHeader('Set-Cookie', session.cookie);
 

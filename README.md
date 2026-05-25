@@ -62,6 +62,7 @@ Backend:
 - NestJS.
 - PostgreSQL.
 - Backend owns metadata adapters, source provider adapters, link resolution, download queue, download execution, persistence, and filesystem interaction.
+- Auth users and sessions are persisted in PostgreSQL so local accounts survive backend restarts.
 
 Metadata:
 

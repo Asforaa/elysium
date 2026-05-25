@@ -81,6 +81,7 @@ Backend:
 - Use PostgreSQL.
 - Backend owns scraping/parsing, provider adapters, host resolvers, download queue, filesystem writes, persistence, and settings.
 - Backend also owns metadata provider adapters such as AniList.
+- Auth users and sessions are PostgreSQL-backed. Do not reintroduce in-memory-only auth state.
 - Backend should expose combined source-provider operations where useful, such as `/providers/search`, so the frontend does not have to hardcode one source adapter.
 - Gopeed is out of scope for now. Do not reintroduce it unless the user explicitly asks to revisit that architecture.
 - Resolve host-provider pages through `apps/api/src/download-engine` before handing the result to the local downloader.
