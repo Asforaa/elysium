@@ -55,6 +55,11 @@ import {
   signupUser,
 } from '@/lib/api';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  ANIME_SEARCH_SORT_OPTIONS,
+  DEFAULT_ANIME_SEARCH_SORT,
+  toAnimeSearchSortUrlValue,
+} from '@/lib/anime-search';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -81,6 +86,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -125,18 +131,6 @@ const SEARCH_FILTERS = [
   { label: 'Format', value: 'Any' },
   { label: 'Airing Status', value: 'Any' },
 ];
-const ANIME_SEARCH_SORT_OPTIONS: Array<{
-  id: AnimeMetadataSearchSort;
-  label: string;
-}> = [
-  { id: 'title', label: 'Title' },
-  { id: 'popularity', label: 'Popularity' },
-  { id: 'average-score', label: 'Average Score' },
-  { id: 'trending', label: 'Trending' },
-  { id: 'favorites', label: 'Favorites' },
-  { id: 'date-added', label: 'Date Added' },
-  { id: 'release-date', label: 'Release Date' },
-];
 const MAIN_NAV_ITEMS: SidebarNavItem[] = [
   { title: 'Home', icon: Home },
   { title: 'Anime', icon: Clapperboard },
@@ -169,29 +163,43 @@ type StartDownloadInput = {
 };
 
 function App({
+  animeSearchQuery: routeAnimeSearchQuery = '',
+  animeSearchRoute = false,
+  animeSearchSort: routeAnimeSearchSort = DEFAULT_ANIME_SEARCH_SORT,
   routeAnimeId,
 }: {
+  animeSearchQuery?: string;
+  animeSearchRoute?: boolean;
+  animeSearchSort?: AnimeMetadataSearchSort;
   routeAnimeId?: number;
   routeAnimeSlug?: string;
 }) {
   const navigate = useNavigate();
-  const [animeQuery, setAnimeQuery] = useState('');
+  const [animeQuery, setAnimeQuery] = useState(routeAnimeSearchQuery);
   const [animeSearchSort, setAnimeSearchSort] =
-    useState<AnimeMetadataSearchSort>('popularity');
+    useState<AnimeMetadataSearchSort>(routeAnimeSearchSort);
   const [selectedEpisodeUrl, setSelectedEpisodeUrl] = useState<string | null>(null);
   const [focusedImage, setFocusedImage] = useState<FocusedImage | null>(null);
   const selectedAnimeId = Number.isFinite(routeAnimeId) ? routeAnimeId : undefined;
   const trimmedAnimeQuery = animeQuery.trim();
   const showingAnimeSearch = trimmedAnimeQuery.length > 0;
 
-  const animeSearchQuery = useQuery({
+  useEffect(() => {
+    setAnimeQuery(routeAnimeSearchQuery);
+  }, [routeAnimeSearchQuery]);
+
+  useEffect(() => {
+    setAnimeSearchSort(routeAnimeSearchSort);
+  }, [routeAnimeSearchSort]);
+
+  const animeMetadataSearchQuery = useQuery({
     queryKey: ['metadata', 'anilist', 'search', trimmedAnimeQuery, animeSearchSort],
     queryFn: () => searchAnimeMetadata(trimmedAnimeQuery, animeSearchSort),
     enabled: showingAnimeSearch,
     staleTime: 60_000,
   });
 
-  const animeResults = animeSearchQuery.data ?? EMPTY_ANIME_RESULTS;
+  const animeResults = animeMetadataSearchQuery.data ?? EMPTY_ANIME_RESULTS;
   const activeAnimeId = selectedAnimeId;
 
   const animeDetailsQuery = useQuery({
@@ -289,6 +297,40 @@ function App({
 
   function handleAnimeQueryChange(value: string) {
     setAnimeQuery(value);
+    navigateToAnimeSearch(value, animeSearchSort);
+  }
+
+  function handleAnimeSearchSortChange(sort: AnimeMetadataSearchSort) {
+    setAnimeSearchSort(sort);
+
+    if (trimmedAnimeQuery) {
+      navigateToAnimeSearch(trimmedAnimeQuery, sort, true);
+    }
+  }
+
+  function navigateToAnimeSearch(
+    query: string,
+    sort: AnimeMetadataSearchSort,
+    replace = animeSearchRoute,
+  ) {
+    const nextQuery = query.trim();
+
+    if (!nextQuery) {
+      if (animeSearchRoute) {
+        void navigate({ replace: true, to: '/' });
+      }
+
+      return;
+    }
+
+    void navigate({
+      replace,
+      search: {
+        search: nextQuery,
+        sort: toAnimeSearchSortUrlValue(sort),
+      },
+      to: '/search/anime',
+    });
   }
 
   function handleAnimeSelect(item: AnimeMetadataSearchResult) {
@@ -322,7 +364,7 @@ function App({
   return (
     <SidebarProvider>
       <ElysiumSidebar
-        activeItem={selectedAnimeId ? 'Anime' : 'Home'}
+        activeItem={selectedAnimeId || showingAnimeSearch ? 'Anime' : 'Home'}
         onHomeSelect={() => {
           void navigate({ to: '/' });
         }}
@@ -330,25 +372,27 @@ function App({
       <SidebarInset className="min-h-svh bg-background text-foreground">
         <div className="p-4 md:p-8">
           <div className="flex w-full flex-col gap-4">
-            <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
+            <header className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(18rem,36rem)_minmax(0,1fr)] md:items-center">
+              <div className="flex min-w-0 items-center gap-2 md:col-start-2">
                 <SidebarTrigger className="-ml-2 md:hidden" />
                 <AnimeSearchBar
                   query={animeQuery}
                   onQueryChange={handleAnimeQueryChange}
                 />
               </div>
-              <AccountControls />
+              <div className="flex justify-end md:col-start-3">
+                <AccountControls />
+              </div>
             </header>
 
             {showingAnimeSearch ? (
               <AnimeSearchResults
-                loading={animeSearchQuery.isFetching}
+                loading={animeMetadataSearchQuery.isFetching}
                 results={animeResults}
                 selectedId={selectedAnimeId}
                 sort={animeSearchSort}
-                error={animeSearchQuery.error}
-                onSortChange={setAnimeSearchSort}
+                error={animeMetadataSearchQuery.error}
+                onSortChange={handleAnimeSearchSortChange}
                 onSelect={handleAnimeSelect}
               />
             ) : null}
@@ -510,9 +554,9 @@ function AnimeSearchBar({
     <div className="relative w-full max-w-xl">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        aria-label="Search anime"
+        aria-label="Search"
         className="h-10 pl-9 pr-10"
-        placeholder="Search anime"
+        placeholder="search"
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
       />
@@ -555,55 +599,70 @@ function AnimeSearchResults({
 
   return (
     <section className="space-y-6 py-2">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(6,minmax(0,1fr))_auto]">
-        {SEARCH_FILTERS.map((filter) => (
-          <div className="space-y-2" key={filter.label}>
-            <p className="text-sm font-medium">{filter.label}</p>
+      <Dialog>
+        <div className="flex justify-end">
+          <DialogTrigger asChild>
             <Button
-              className="h-11 w-full justify-between px-3 text-muted-foreground"
-              disabled
+              aria-label="Open search filters"
+              className="size-11"
+              size="icon"
               type="button"
               variant="secondary"
             >
-              {filter.value}
-              <ChevronDown />
+              <SlidersHorizontal />
             </Button>
-          </div>
-        ))}
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Sort By</p>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                className="h-11 w-full justify-between px-3 text-muted-foreground"
-                type="button"
-                variant="secondary"
-              >
-                {selectedSort.label}
-                <ChevronDown />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
-              {ANIME_SEARCH_SORT_OPTIONS.map((option) => (
-                <DropdownMenuItem
-                  className={cn(
-                    sort === option.id && 'font-medium text-foreground',
-                  )}
-                  key={option.id}
-                  onSelect={() => onSortChange(option.id)}
+          </DialogTrigger>
+        </div>
+        <DialogContent aria-describedby={undefined} className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Filters</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {SEARCH_FILTERS.map((filter) => (
+              <div className="space-y-2" key={filter.label}>
+                <p className="text-sm font-medium">{filter.label}</p>
+                <Button
+                  className="h-11 w-full justify-between px-3 text-muted-foreground"
+                  disabled
+                  type="button"
+                  variant="secondary"
                 >
-                  {option.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="flex items-end">
-          <Button className="size-11" disabled size="icon" type="button" variant="secondary">
-            <SlidersHorizontal />
-          </Button>
-        </div>
-      </div>
+                  {filter.value}
+                  <ChevronDown />
+                </Button>
+              </div>
+            ))}
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Sort By</p>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    className="h-11 w-full justify-between px-3 text-muted-foreground"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {selectedSort.label}
+                    <ChevronDown />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  {ANIME_SEARCH_SORT_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      className={cn(
+                        sort === option.id && 'font-medium text-foreground',
+                      )}
+                      key={option.id}
+                      onSelect={() => onSortChange(option.id)}
+                    >
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {loading ? (
         <AnimeSearchSkeletonGrid />

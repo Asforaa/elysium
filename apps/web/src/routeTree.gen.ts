@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SearchAnimeRouteImport } from './routes/search.anime'
 import { Route as AnimeAnimeIdSlugRouteImport } from './routes/anime.$animeId.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchAnimeRoute = SearchAnimeRouteImport.update({
+  id: '/search/anime',
+  path: '/search/anime',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnimeAnimeIdSlugRoute = AnimeAnimeIdSlugRouteImport.update({
@@ -25,27 +31,31 @@ const AnimeAnimeIdSlugRoute = AnimeAnimeIdSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/search/anime': typeof SearchAnimeRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/search/anime': typeof SearchAnimeRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/search/anime': typeof SearchAnimeRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/anime/$animeId/$slug'
+  fullPaths: '/' | '/search/anime' | '/anime/$animeId/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/anime/$animeId/$slug'
-  id: '__root__' | '/' | '/anime/$animeId/$slug'
+  to: '/' | '/search/anime' | '/anime/$animeId/$slug'
+  id: '__root__' | '/' | '/search/anime' | '/anime/$animeId/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SearchAnimeRoute: typeof SearchAnimeRoute
   AnimeAnimeIdSlugRoute: typeof AnimeAnimeIdSlugRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search/anime': {
+      id: '/search/anime'
+      path: '/search/anime'
+      fullPath: '/search/anime'
+      preLoaderRoute: typeof SearchAnimeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/anime/$animeId/$slug': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SearchAnimeRoute: SearchAnimeRoute,
   AnimeAnimeIdSlugRoute: AnimeAnimeIdSlugRoute,
 }
 export const routeTree = rootRouteImport
