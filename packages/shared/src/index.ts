@@ -47,6 +47,19 @@ export interface AnimeTitle {
   userPreferred: string;
 }
 
+export type AnimeMetadataSearchSort =
+  | "title"
+  | "popularity"
+  | "average-score"
+  | "trending"
+  | "favorites"
+  | "date-added"
+  | "release-date";
+
+export interface AnimeMetadataSearchOptions {
+  sort?: AnimeMetadataSearchSort;
+}
+
 export interface AnimeImage {
   extraLarge?: string;
   large?: string;
@@ -80,7 +93,10 @@ export interface AnimeMetadataSearchResult {
   genres: string[];
   synonyms: string[];
   averageScore?: number;
+  favourites?: number;
   popularity?: number;
+  trending?: number;
+  updatedAt?: number;
   siteUrl?: string;
 }
 
@@ -138,7 +154,6 @@ export interface AnimeRelation {
 
 export interface AnimeMetadataDetails extends AnimeMetadataSearchResult {
   meanScore?: number;
-  favourites?: number;
   source?: string;
   countryOfOrigin?: string;
   endDate?: FuzzyDate;

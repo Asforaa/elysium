@@ -5,8 +5,21 @@ import {
   Param,
   Query,
 } from '@nestjs/common';
-import type { MetadataProviderId } from '@elysium/shared';
+import type {
+  AnimeMetadataSearchSort,
+  MetadataProviderId,
+} from '@elysium/shared';
 import { MetadataProvidersService } from './metadata-providers.service';
+
+const ANIME_METADATA_SEARCH_SORTS: AnimeMetadataSearchSort[] = [
+  'title',
+  'popularity',
+  'average-score',
+  'trending',
+  'favorites',
+  'date-added',
+  'release-date',
+];
 
 @Controller('metadata')
 export class MetadataProvidersController {
@@ -21,12 +34,15 @@ export class MetadataProvidersController {
   searchAnime(
     @Param('providerId') providerId: MetadataProviderId,
     @Query('q') query?: string,
+    @Query('sort') sort?: string,
   ) {
     if (!query?.trim()) {
       throw new BadRequestException('Missing anime search query');
     }
 
-    return this.metadataProviders.getAdapter(providerId).searchAnime(query);
+    return this.metadataProviders
+      .getAdapter(providerId)
+      .searchAnime(query, { sort: normalizeAnimeSearchSort(sort) });
   }
 
   @Get(':providerId/anime/:id')
@@ -42,4 +58,18 @@ export class MetadataProvidersController {
 
     return this.metadataProviders.getAdapter(providerId).getAnimeDetails(id);
   }
+}
+
+function normalizeAnimeSearchSort(
+  sort: string | undefined,
+): AnimeMetadataSearchSort {
+  if (!sort) {
+    return 'popularity';
+  }
+
+  if (ANIME_METADATA_SEARCH_SORTS.includes(sort as AnimeMetadataSearchSort)) {
+    return sort as AnimeMetadataSearchSort;
+  }
+
+  throw new BadRequestException(`Unsupported anime search sort: ${sort}`);
 }

@@ -1,5 +1,6 @@
 import type {
   AnimeMetadataDetails,
+  AnimeMetadataSearchSort,
   AnimeMetadataSearchResult,
   DownloadMediaContext,
   DownloadJob,
@@ -53,8 +54,13 @@ export async function listProviders(): Promise<SourceProvider[]> {
   return getJson('/providers');
 }
 
-export async function searchAnimeMetadata(query: string): Promise<AnimeMetadataSearchResult[]> {
-  return getJson(`/metadata/anilist/search?q=${encodeURIComponent(query)}`);
+export async function searchAnimeMetadata(
+  query: string,
+  sort: AnimeMetadataSearchSort = 'popularity',
+): Promise<AnimeMetadataSearchResult[]> {
+  const params = new URLSearchParams({ q: query, sort });
+
+  return getJson(`/metadata/anilist/search?${params.toString()}`);
 }
 
 export async function getAnimeMetadata(id: number): Promise<AnimeMetadataDetails> {

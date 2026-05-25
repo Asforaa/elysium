@@ -2,7 +2,9 @@ import type {
   AnimeCharacter,
   AnimeImage,
   AnimeMetadataDetails,
+  AnimeMetadataSearchOptions,
   AnimeMetadataSearchResult,
+  AnimeMetadataSearchSort,
   AnimeRelation,
   AnimeTitle,
   AnimeVoiceActor,
@@ -82,13 +84,15 @@ interface AniListMediaBase {
   genres?: string[] | null;
   synonyms?: string[] | null;
   averageScore?: number | null;
+  favourites?: number | null;
   popularity?: number | null;
+  trending?: number | null;
+  updatedAt?: number | null;
   siteUrl?: string | null;
 }
 
 interface AniListMediaDetails extends AniListMediaBase {
   meanScore?: number | null;
-  favourites?: number | null;
   source?: string | null;
   countryOfOrigin?: string | null;
   endDate?: AniListDate | null;
@@ -125,11 +129,20 @@ interface AniListGraphqlResponse<T> {
 }
 
 const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
+const ANILIST_SEARCH_SORTS: Record<AnimeMetadataSearchSort, string[]> = {
+  title: ['TITLE_ROMAJI'],
+  popularity: ['POPULARITY_DESC'],
+  'average-score': ['SCORE_DESC'],
+  trending: ['TRENDING_DESC'],
+  favorites: ['FAVOURITES_DESC'],
+  'date-added': ['ID_DESC'],
+  'release-date': ['START_DATE_DESC'],
+};
 
 const SEARCH_QUERY = `
-  query ElysiumAnimeSearch($search: String!, $perPage: Int!) {
+  query ElysiumAnimeSearch($search: String!, $perPage: Int!, $sort: [MediaSort]) {
     Page(page: 1, perPage: $perPage) {
-      media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
+      media(search: $search, type: ANIME, sort: $sort) {
         id
         idMal
         type
@@ -162,6 +175,9 @@ const SEARCH_QUERY = `
         synonyms
         averageScore
         popularity
+        favourites
+        trending
+        updatedAt
         siteUrl
       }
     }
@@ -210,6 +226,8 @@ const DETAILS_QUERY = `
       meanScore
       popularity
       favourites
+      trending
+      updatedAt
       source
       countryOfOrigin
       siteUrl
@@ -290,6 +308,9 @@ const DETAILS_QUERY = `
             synonyms
             averageScore
             popularity
+            favourites
+            trending
+            updatedAt
             siteUrl
           }
         }
@@ -316,10 +337,17 @@ export class AniListMetadataAdapter implements MetadataProviderAdapter {
     enabled: true,
   };
 
-  async searchAnime(query: string): Promise<AnimeMetadataSearchResult[]> {
+  async searchAnime(
+    query: string,
+    options: AnimeMetadataSearchOptions = {},
+  ): Promise<AnimeMetadataSearchResult[]> {
     const data = await this.postGraphql<{
       Page?: { media?: AniListMediaBase[] | null } | null;
-    }>(SEARCH_QUERY, { search: query, perPage: 8 });
+    }>(SEARCH_QUERY, {
+      search: query,
+      perPage: 12,
+      sort: ANILIST_SEARCH_SORTS[options.sort ?? 'popularity'],
+    });
 
     return (data.Page?.media ?? []).map((media) => this.toSearchResult(media));
   }
@@ -394,7 +422,10 @@ export class AniListMetadataAdapter implements MetadataProviderAdapter {
       genres: media.genres ?? [],
       synonyms: media.synonyms ?? [],
       averageScore: media.averageScore ?? undefined,
+      favourites: media.favourites ?? undefined,
       popularity: media.popularity ?? undefined,
+      trending: media.trending ?? undefined,
+      updatedAt: media.updatedAt ?? undefined,
       siteUrl: media.siteUrl ?? undefined,
     };
   }

@@ -8,24 +8,19 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import {
-  ArrowUpDown,
   Clapperboard,
   ChevronDown,
   Clock,
   Download,
   Film,
-  Grid2X2,
-  Grid3X3,
   Heart,
   Home,
   LogOut,
   Moon,
   Plus,
-  Rows3,
   Search,
   SlidersHorizontal,
   Sun,
-  Tags,
   Tv,
   User,
   X,
@@ -35,6 +30,7 @@ import { useTheme } from 'next-themes';
 import type {
   AnimeMetadataDetails,
   AnimeMetadataSearchResult,
+  AnimeMetadataSearchSort,
   AnimeRelation,
   DownloadMediaContext,
   DownloadJob,
@@ -129,6 +125,18 @@ const SEARCH_FILTERS = [
   { label: 'Format', value: 'Any' },
   { label: 'Airing Status', value: 'Any' },
 ];
+const ANIME_SEARCH_SORT_OPTIONS: Array<{
+  id: AnimeMetadataSearchSort;
+  label: string;
+}> = [
+  { id: 'title', label: 'Title' },
+  { id: 'popularity', label: 'Popularity' },
+  { id: 'average-score', label: 'Average Score' },
+  { id: 'trending', label: 'Trending' },
+  { id: 'favorites', label: 'Favorites' },
+  { id: 'date-added', label: 'Date Added' },
+  { id: 'release-date', label: 'Release Date' },
+];
 const MAIN_NAV_ITEMS: SidebarNavItem[] = [
   { title: 'Home', icon: Home },
   { title: 'Anime', icon: Clapperboard },
@@ -168,6 +176,8 @@ function App({
 }) {
   const navigate = useNavigate();
   const [animeQuery, setAnimeQuery] = useState('');
+  const [animeSearchSort, setAnimeSearchSort] =
+    useState<AnimeMetadataSearchSort>('popularity');
   const [selectedEpisodeUrl, setSelectedEpisodeUrl] = useState<string | null>(null);
   const [focusedImage, setFocusedImage] = useState<FocusedImage | null>(null);
   const selectedAnimeId = Number.isFinite(routeAnimeId) ? routeAnimeId : undefined;
@@ -175,8 +185,8 @@ function App({
   const showingAnimeSearch = trimmedAnimeQuery.length > 0;
 
   const animeSearchQuery = useQuery({
-    queryKey: ['metadata', 'anilist', 'search', trimmedAnimeQuery],
-    queryFn: () => searchAnimeMetadata(trimmedAnimeQuery),
+    queryKey: ['metadata', 'anilist', 'search', trimmedAnimeQuery, animeSearchSort],
+    queryFn: () => searchAnimeMetadata(trimmedAnimeQuery, animeSearchSort),
     enabled: showingAnimeSearch,
     staleTime: 60_000,
   });
@@ -334,10 +344,11 @@ function App({
             {showingAnimeSearch ? (
               <AnimeSearchResults
                 loading={animeSearchQuery.isFetching}
-                query={trimmedAnimeQuery}
                 results={animeResults}
                 selectedId={selectedAnimeId}
+                sort={animeSearchSort}
                 error={animeSearchQuery.error}
+                onSortChange={setAnimeSearchSort}
                 onSelect={handleAnimeSelect}
               />
             ) : null}
@@ -524,21 +535,27 @@ function AnimeSearchBar({
 function AnimeSearchResults({
   error,
   loading,
-  query,
   results,
   selectedId,
+  sort,
+  onSortChange,
   onSelect,
 }: {
   error: Error | null;
   loading: boolean;
-  query: string;
   results: AnimeMetadataSearchResult[];
   selectedId?: number;
+  sort: AnimeMetadataSearchSort;
+  onSortChange: (sort: AnimeMetadataSearchSort) => void;
   onSelect: (item: AnimeMetadataSearchResult) => void;
 }) {
+  const selectedSort =
+    ANIME_SEARCH_SORT_OPTIONS.find((option) => option.id === sort) ??
+    ANIME_SEARCH_SORT_OPTIONS[1];
+
   return (
     <section className="space-y-6 py-2">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(6,minmax(0,1fr))_auto]">
         {SEARCH_FILTERS.map((filter) => (
           <div className="space-y-2" key={filter.label}>
             <p className="text-sm font-medium">{filter.label}</p>
@@ -553,31 +570,38 @@ function AnimeSearchResults({
             </Button>
           </div>
         ))}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Sort By</p>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                className="h-11 w-full justify-between px-3 text-muted-foreground"
+                type="button"
+                variant="secondary"
+              >
+                {selectedSort.label}
+                <ChevronDown />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              {ANIME_SEARCH_SORT_OPTIONS.map((option) => (
+                <DropdownMenuItem
+                  className={cn(
+                    sort === option.id && 'font-medium text-foreground',
+                  )}
+                  key={option.id}
+                  onSelect={() => onSortChange(option.id)}
+                >
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <div className="flex items-end">
           <Button className="size-11" disabled size="icon" type="button" variant="secondary">
             <SlidersHorizontal />
           </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <Tags className="size-5 text-muted-foreground" />
-          <Badge className="max-w-full truncate px-3 py-1 text-sm">
-            Search: {query}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <ArrowUpDown className="size-4" />
-            Popularity
-          </span>
-          <Separator className="h-5" orientation="vertical" />
-          <span className="inline-flex items-center gap-2">
-            <Grid3X3 className="size-5" />
-            <Grid2X2 className="size-5" />
-            <Rows3 className="size-5" />
-          </span>
         </div>
       </div>
 
