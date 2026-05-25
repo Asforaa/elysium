@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { SyntheticEvent } from 'react';
+import type { ComponentProps, SyntheticEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import {
@@ -9,6 +9,8 @@ import {
   Film,
   Heart,
   Home,
+  LogIn,
+  LogOut,
   Moon,
   Plus,
   Sun,
@@ -29,13 +31,18 @@ import type {
 } from '@elysium/shared';
 import {
   getAnimeMetadata,
+  getAuthSession,
   getDownloadOptions,
   getEpisodes,
   listDownloadJobs,
   searchAnimeMetadata,
   searchMedia,
   startDownload,
+  loginUser,
+  logoutUser,
+  signupUser,
 } from '@/lib/api';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,6 +53,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -54,6 +69,7 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
@@ -235,13 +251,12 @@ function App({
       />
       <SidebarInset className="min-h-svh bg-background text-foreground">
         <div className="p-4 md:p-8">
-          <div className="mx-auto flex max-w-6xl flex-col gap-4">
-            <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex w-full flex-col gap-4">
+            <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <SidebarTrigger className="-ml-2" />
-                <h1 className="text-2xl font-semibold">Elysium</h1>
               </div>
-              <ThemeToggle />
+              <AccountControls />
             </header>
 
             <Card>
@@ -402,6 +417,16 @@ function ElysiumSidebar({
 }) {
   return (
     <Sidebar collapsible="icon">
+      <SidebarHeader className="px-3 py-4">
+        <div className="flex h-9 items-center gap-2 rounded-md px-2">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
+            E
+          </div>
+          <span className="truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
+            Elysium
+          </span>
+        </div>
+      </SidebarHeader>
       <SidebarContent className="py-3">
         <SidebarNavSection
           activeItem={activeItem}
@@ -569,7 +594,113 @@ function RelatedAnimeCard({
   );
 }
 
-function ThemeToggle() {
+function AccountControls() {
+  const authSessionQuery = useQuery({
+    queryKey: ['auth', 'session'],
+    queryFn: getAuthSession,
+    staleTime: 30_000,
+  });
+  const loginMutation = useMutation({
+    mutationFn: loginUser,
+    onSuccess: () => {
+      void authSessionQuery.refetch();
+    },
+  });
+  const signupMutation = useMutation({
+    mutationFn: signupUser,
+    onSuccess: () => {
+      void authSessionQuery.refetch();
+    },
+  });
+  const logoutMutation = useMutation({
+    mutationFn: logoutUser,
+    onSuccess: () => {
+      void authSessionQuery.refetch();
+    },
+  });
+  const user = authSessionQuery.data?.authenticated
+    ? authSessionQuery.data.user
+    : undefined;
+  const busy =
+    authSessionQuery.isLoading ||
+    loginMutation.isPending ||
+    signupMutation.isPending ||
+    logoutMutation.isPending;
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          disabled={busy}
+          type="button"
+          variant="outline"
+          onClick={() => loginMutation.mutate()}
+        >
+          <LogIn />
+          Login
+        </Button>
+        <Button
+          disabled={busy}
+          type="button"
+          onClick={() => signupMutation.mutate()}
+        >
+          <Plus />
+          Sign up
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label="Open account menu"
+          className="rounded-full"
+          size="icon"
+          type="button"
+          variant="outline"
+        >
+          <Avatar className="size-8">
+            <AvatarFallback>{user.initials}</AvatarFallback>
+          </Avatar>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>
+          <span className="block truncate">{user.name}</span>
+          <span className="block truncate text-xs font-normal text-muted-foreground">
+            {user.email}
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem>
+          <User />
+          My Account
+        </DropdownMenuItem>
+        <div className="px-1 py-1">
+          <ThemeToggle className="h-8 w-full justify-start px-2" variant="ghost" />
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={busy}
+          onSelect={() => logoutMutation.mutate()}
+        >
+          <LogOut />
+          Logout
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function ThemeToggle({
+  className,
+  variant = 'outline',
+}: {
+  className?: string;
+  variant?: ComponentProps<typeof Button>['variant'];
+}) {
   const { resolvedTheme, setTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const nextTheme = isDark ? 'light' : 'dark';
@@ -577,9 +708,9 @@ function ThemeToggle() {
 
   return (
     <Button
-      className="w-fit"
+      className={cn('w-fit', className)}
       type="button"
-      variant="outline"
+      variant={variant}
       onClick={() => setTheme(nextTheme)}
       aria-label={`Switch to ${nextTheme} theme`}
     >

@@ -11,6 +11,34 @@ import type {
 
 const API_BASE_URL = resolveApiBaseUrl();
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  initials: string;
+  name: string;
+}
+
+export interface AuthSession {
+  authenticated: boolean;
+  user?: AuthUser;
+}
+
+export async function getAuthSession(): Promise<AuthSession> {
+  return getJson('/auth/session');
+}
+
+export async function loginUser(): Promise<AuthSession> {
+  return sendJson('/auth/login', {});
+}
+
+export async function signupUser(): Promise<AuthSession> {
+  return sendJson('/auth/signup', {});
+}
+
+export async function logoutUser(): Promise<AuthSession> {
+  return sendJson('/auth/logout', {});
+}
+
 export async function listProviders(): Promise<SourceProvider[]> {
   return getJson('/providers');
 }
@@ -50,7 +78,9 @@ export async function startDownload(option: DownloadOption): Promise<DownloadJob
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: 'include',
+  });
 
   if (!response.ok) {
     throw new Error(`API request failed: ${response.status} ${response.statusText}`);
@@ -62,6 +92,7 @@ async function getJson<T>(path: string): Promise<T> {
 async function sendJson<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     body: JSON.stringify(body),
+    credentials: 'include',
     headers: {
       'content-type': 'application/json',
     },
