@@ -622,7 +622,6 @@ function AccountControls() {
   const [authProfilePhotoError, setAuthProfilePhotoError] = useState('');
   const [authProfilePhotoOptimizing, setAuthProfilePhotoOptimizing] =
     useState(false);
-  const [authProfilePhotoName, setAuthProfilePhotoName] = useState('');
   const authSessionQuery = useQuery({
     queryKey: ['auth', 'session'],
     queryFn: getAuthSession,
@@ -697,25 +696,21 @@ function AccountControls() {
     if (!file) {
       setAuthProfilePhotoDataUrl('');
       setAuthProfilePhotoError('');
-      setAuthProfilePhotoName('');
       return;
     }
 
     if (!file.type.startsWith('image/')) {
       setAuthProfilePhotoDataUrl('');
       setAuthProfilePhotoError('Profile photo must be an image file.');
-      setAuthProfilePhotoName('');
       return;
     }
 
     if (file.size > MAX_PROFILE_PHOTO_SOURCE_BYTES) {
       setAuthProfilePhotoDataUrl('');
       setAuthProfilePhotoError('Profile photo must be smaller than 10 MB.');
-      setAuthProfilePhotoName('');
       return;
     }
 
-    setAuthProfilePhotoName(file.name);
     setAuthProfilePhotoError('');
     setAuthProfilePhotoOptimizing(true);
 
@@ -770,6 +765,46 @@ function AccountControls() {
           <form className="space-y-4" onSubmit={handleAuthSubmit}>
             {authDialogMode === 'signup' ? (
               <>
+                <div className="flex flex-col items-center gap-2">
+                  <Input
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={authProfilePhotoOptimizing}
+                    id="auth-photo"
+                    type="file"
+                    onChange={handleProfilePhotoChange}
+                  />
+                  <label
+                    className={cn(
+                      'cursor-pointer rounded-full focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background',
+                      authProfilePhotoOptimizing && 'cursor-wait opacity-70',
+                    )}
+                    htmlFor="auth-photo"
+                  >
+                    <Avatar className="size-24 border text-xl shadow-sm">
+                      {authProfilePhotoDataUrl ? (
+                        <AvatarImage
+                          alt="Selected profile preview"
+                          src={authProfilePhotoDataUrl}
+                        />
+                      ) : null}
+                      <AvatarFallback>
+                        {createAuthPreviewInitials(authName, authEmail)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="sr-only">Choose profile photo</span>
+                  </label>
+                  {authProfilePhotoOptimizing ? (
+                    <p className="text-xs text-muted-foreground">
+                      Optimizing image...
+                    </p>
+                  ) : null}
+                  {authProfilePhotoError ? (
+                    <p className="text-xs text-destructive">
+                      {authProfilePhotoError}
+                    </p>
+                  ) : null}
+                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium" htmlFor="auth-name">
                     Name
@@ -781,48 +816,6 @@ function AccountControls() {
                     value={authName}
                     onChange={(event) => setAuthName(event.target.value)}
                   />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="auth-photo">
-                    Profile photo
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="size-12">
-                      {authProfilePhotoDataUrl ? (
-                        <AvatarImage
-                          alt="Selected profile preview"
-                          src={authProfilePhotoDataUrl}
-                        />
-                      ) : null}
-                      <AvatarFallback>
-                        {createAuthPreviewInitials(authName, authEmail)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <Input
-                        accept="image/*"
-                        disabled={authProfilePhotoOptimizing}
-                        id="auth-photo"
-                        type="file"
-                        onChange={handleProfilePhotoChange}
-                      />
-                      {authProfilePhotoOptimizing ? (
-                        <p className="text-xs text-muted-foreground">
-                          Optimizing image...
-                        </p>
-                      ) : null}
-                      {authProfilePhotoName ? (
-                        <p className="truncate text-xs text-muted-foreground">
-                          {authProfilePhotoName}
-                        </p>
-                      ) : null}
-                      {authProfilePhotoError ? (
-                        <p className="text-xs text-destructive">
-                          {authProfilePhotoError}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
                 </div>
               </>
             ) : null}
