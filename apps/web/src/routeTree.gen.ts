@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as HomeRouteImport } from './routes/home'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SearchAnimeRouteImport } from './routes/search.anime'
 import { Route as AnimeAnimeIdSlugRouteImport } from './routes/anime.$animeId.$slug'
 
+const HomeRoute = HomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,36 +37,47 @@ const AnimeAnimeIdSlugRoute = AnimeAnimeIdSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/home': typeof HomeRoute
   '/search/anime': typeof SearchAnimeRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/home': typeof HomeRoute
   '/search/anime': typeof SearchAnimeRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/home': typeof HomeRoute
   '/search/anime': typeof SearchAnimeRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/search/anime' | '/anime/$animeId/$slug'
+  fullPaths: '/' | '/home' | '/search/anime' | '/anime/$animeId/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/search/anime' | '/anime/$animeId/$slug'
-  id: '__root__' | '/' | '/search/anime' | '/anime/$animeId/$slug'
+  to: '/' | '/home' | '/search/anime' | '/anime/$animeId/$slug'
+  id: '__root__' | '/' | '/home' | '/search/anime' | '/anime/$animeId/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  HomeRoute: typeof HomeRoute
   SearchAnimeRoute: typeof SearchAnimeRoute
   AnimeAnimeIdSlugRoute: typeof AnimeAnimeIdSlugRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/home': {
+      id: '/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  HomeRoute: HomeRoute,
   SearchAnimeRoute: SearchAnimeRoute,
   AnimeAnimeIdSlugRoute: AnimeAnimeIdSlugRoute,
 }

@@ -366,7 +366,7 @@ function App({
       <ElysiumSidebar
         activeItem={selectedAnimeId || showingAnimeSearch ? 'Anime' : 'Home'}
         onHomeSelect={() => {
-          void navigate({ to: '/' });
+          void navigate({ to: '/home' });
         }}
       />
       <SidebarInset className="min-h-svh bg-background text-foreground">
@@ -754,14 +754,21 @@ function ElysiumSidebar({
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
         <div className="flex h-9 items-center gap-2 rounded-md px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          <img
-            alt="Elysium"
-            className="size-8 shrink-0 object-contain"
-            src={BRAND_MARK_SRC}
-          />
-          <span className="font-brand truncate text-xl font-normal leading-none group-data-[collapsible=icon]:hidden">
-            Elysium
-          </span>
+          <button
+            aria-label="Go to home"
+            className="flex min-w-0 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:justify-center"
+            type="button"
+            onClick={onHomeSelect}
+          >
+            <img
+              alt=""
+              className="size-8 shrink-0 object-contain"
+              src={BRAND_MARK_SRC}
+            />
+            <span className="font-brand truncate text-xl font-normal leading-none group-data-[collapsible=icon]:hidden">
+              Elysium
+            </span>
+          </button>
           <SidebarTrigger className="ml-auto hidden md:inline-flex group-data-[collapsible=icon]:hidden" />
         </div>
       </SidebarHeader>
