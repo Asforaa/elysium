@@ -1746,29 +1746,29 @@ function AnimeDetailPanel({
   return (
     <section className="relative overflow-hidden rounded-xl border bg-card text-card-foreground">
       {hasBanner ? (
-        <div className="relative z-0 h-[clamp(12rem,26vw,20rem)] overflow-hidden bg-muted 2xl:h-auto 2xl:overflow-visible">
+        <div className="relative z-0 h-[clamp(10rem,22vw,17rem)] overflow-hidden bg-muted">
           <FocusableImage
             alt={`${anime.displayTitle} banner`}
-            buttonClassName="block h-full w-full rounded-none 2xl:h-auto"
-            imageClassName="h-full w-full object-cover opacity-80 2xl:h-auto 2xl:object-contain"
+            buttonClassName="block h-full w-full rounded-none"
+            imageClassName="h-full w-full object-cover opacity-80"
             src={anime.bannerImage ?? ''}
             onFocusImage={onImageFocus}
           />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-card via-card/80 to-transparent" />
         </div>
       ) : null}
-      <div className="relative z-10 grid gap-4 p-4 md:grid-cols-[12rem_minmax(0,1fr)] md:p-6">
-        <div className={cn('relative z-20', hasBanner && 'md:-mt-24')}>
+      <div className="relative z-10 grid gap-4 p-4 md:grid-cols-[11rem_minmax(0,1fr)] md:p-6">
+        <div className={cn('relative z-20', hasBanner && 'md:-mt-20')}>
           {coverUrl ? (
             <FocusableImage
               alt={`${anime.displayTitle} cover`}
-              buttonClassName="block w-36 rounded-lg border bg-muted shadow-sm md:w-48"
+              buttonClassName="block w-32 rounded-lg border bg-muted shadow-sm md:w-44"
               imageClassName="aspect-[2/3] w-full object-cover"
               src={coverUrl}
               onFocusImage={onImageFocus}
             />
           ) : (
-            <div className="aspect-[2/3] w-36 rounded-lg border bg-muted md:w-48" />
+            <div className="aspect-[2/3] w-32 rounded-lg border bg-muted md:w-44" />
           )}
         </div>
         <div className="flex min-w-0 flex-col gap-4">
@@ -1892,7 +1892,7 @@ function FocusableImage({
   return (
     <button
       className={cn(
-        'overflow-hidden rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'overflow-hidden rounded-md text-left outline-none focus:outline-none focus-visible:outline-none',
         buttonClassName,
       )}
       type="button"
@@ -1901,6 +1901,7 @@ function FocusableImage({
           event.stopPropagation();
         }
 
+        event.currentTarget.blur();
         onFocusImage({ alt, src });
       }}
     >
