@@ -529,9 +529,9 @@ function App({
           void navigate({ to: '/home' });
         }}
       />
-      <SidebarInset className="min-h-svh bg-background text-foreground">
-        <div className="p-4 md:p-8">
-          <div className="flex w-full flex-col gap-4">
+      <SidebarInset className="min-h-svh min-w-0 bg-background text-foreground">
+        <div className="min-w-0 overflow-x-hidden p-4 md:p-8">
+          <div className="flex min-w-0 flex-col gap-4">
             <header className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(18rem,36rem)_minmax(0,1fr)] md:items-center">
               <div className="flex min-w-0 items-center gap-2 md:col-start-2">
                 <SidebarTrigger className="-ml-2 md:hidden" />
