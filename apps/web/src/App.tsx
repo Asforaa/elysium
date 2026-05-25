@@ -7,7 +7,7 @@ import type {
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import ReactPlayer from 'react-player';
 import {
   Clapperboard,
@@ -79,6 +79,14 @@ import {
 } from '@/lib/anime-search';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -105,6 +113,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -557,16 +574,27 @@ function App({
         <div className="min-w-0 overflow-x-hidden p-4 md:p-8">
           <div className="flex min-w-0 flex-col gap-4">
             <header className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(18rem,36rem)_minmax(0,1fr)] md:items-center">
-              <div className="flex min-w-0 items-center gap-2 md:col-start-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <SidebarTrigger className="-ml-2 md:hidden" />
+                <AppBreadcrumbs
+                  anime={animeDetails}
+                  animeSearchRoute={animeSearchRoute || showingAnimeSearch}
+                  downloadsRoute={downloadsRoute}
+                  placeholderRoute={placeholderRoute}
+                  routeEpisodeNumber={routeEpisodeNumber}
+                  selectedEpisode={selectedEpisode}
+                  selectedAnimeId={selectedAnimeId}
+                />
+              </div>
+              <div className="flex min-w-0 items-center justify-center md:col-start-2 md:row-start-1">
                 <AnimeSearchBar
                   focusTick={animeSearchFocusTick}
                   query={animeQuery}
                   onQueryChange={handleAnimeQueryChange}
                 />
               </div>
-              <div className="flex items-center justify-end gap-2 md:col-start-3">
-                <DownloadHistoryDropdown
+              <div className="flex items-center justify-end gap-2 md:col-start-3 md:row-start-1">
+                <DownloadHistoryDrawer
                   jobs={downloadJobs}
                   loading={downloadJobsQuery.isFetching}
                   mutating={
@@ -627,18 +655,6 @@ function App({
 
             {!downloadsRoute &&
             !placeholderRoute &&
-            !showingEpisodeRoute &&
-            !showingAnimeSearch &&
-            animeDetails ? (
-              <RelatedAnimeSection
-                relations={animeRelations}
-                selectedAnimeId={selectedAnimeId}
-                onAnimeSelect={handleAnimeSelect}
-              />
-            ) : null}
-
-            {!downloadsRoute &&
-            !placeholderRoute &&
             !showingAnimeSearch &&
             animeDetails &&
             showingEpisodeRoute ? (
@@ -685,6 +701,18 @@ function App({
                   </CardContent>
                 </Card>
               </>
+            ) : null}
+
+            {!downloadsRoute &&
+            !placeholderRoute &&
+            !showingEpisodeRoute &&
+            !showingAnimeSearch &&
+            animeDetails ? (
+              <RelatedAnimeSection
+                relations={animeRelations}
+                selectedAnimeId={selectedAnimeId}
+                onAnimeSelect={handleAnimeSelect}
+              />
             ) : null}
 
             {!downloadsRoute &&
@@ -795,6 +823,127 @@ function App({
         ) : null}
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+function AppBreadcrumbs({
+  anime,
+  animeSearchRoute,
+  downloadsRoute,
+  placeholderRoute,
+  routeEpisodeNumber,
+  selectedAnimeId,
+  selectedEpisode,
+}: {
+  anime?: AnimeMetadataDetails;
+  animeSearchRoute: boolean;
+  downloadsRoute: boolean;
+  placeholderRoute?: SidebarItemTitle;
+  routeEpisodeNumber?: string;
+  selectedAnimeId?: number;
+  selectedEpisode?: EpisodeSummary;
+}) {
+  const animeTitle = anime?.displayTitle;
+  const episodeLabel = routeEpisodeNumber
+    ? selectedEpisode
+      ? formatEpisodeTitle(selectedEpisode)
+      : `Episode ${routeEpisodeNumber}`
+    : undefined;
+
+  return (
+    <Breadcrumb className="min-w-0">
+      <BreadcrumbList className="flex-nowrap overflow-hidden">
+        {downloadsRoute ? (
+          <BreadcrumbItem className="min-w-0">
+            <BreadcrumbPage className="truncate">Downloads</BreadcrumbPage>
+          </BreadcrumbItem>
+        ) : null}
+
+        {!downloadsRoute && placeholderRoute ? (
+          <BreadcrumbItem className="min-w-0">
+            <BreadcrumbPage className="truncate">{placeholderRoute}</BreadcrumbPage>
+          </BreadcrumbItem>
+        ) : null}
+
+        {!downloadsRoute && !placeholderRoute && animeSearchRoute ? (
+          <>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/anime">Anime</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem className="min-w-0">
+              <BreadcrumbPage className="truncate">Search</BreadcrumbPage>
+            </BreadcrumbItem>
+          </>
+        ) : null}
+
+        {!downloadsRoute && !placeholderRoute && !animeSearchRoute && anime ? (
+          <>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/anime">Anime</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem className="min-w-0">
+              {episodeLabel ? (
+                <BreadcrumbLink asChild className="truncate">
+                  <Link
+                    params={{
+                      animeId: String(anime.id),
+                      slug: toAnimeSlug(anime),
+                    }}
+                    to="/anime/$animeId/$slug"
+                  >
+                    {animeTitle}
+                  </Link>
+                </BreadcrumbLink>
+              ) : (
+                <BreadcrumbPage className="truncate">{animeTitle}</BreadcrumbPage>
+              )}
+            </BreadcrumbItem>
+            {episodeLabel ? (
+              <>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem className="min-w-0">
+                  <BreadcrumbPage className="truncate">{episodeLabel}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            ) : null}
+          </>
+        ) : null}
+
+        {!downloadsRoute &&
+        !placeholderRoute &&
+        !animeSearchRoute &&
+        !anime &&
+        selectedAnimeId ? (
+          <>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/anime">Anime</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem className="min-w-0">
+              <BreadcrumbPage className="truncate">Loading</BreadcrumbPage>
+            </BreadcrumbItem>
+          </>
+        ) : null}
+
+        {!downloadsRoute &&
+        !placeholderRoute &&
+        !animeSearchRoute &&
+        !selectedAnimeId &&
+        !anime ? (
+          <BreadcrumbItem className="min-w-0">
+            <BreadcrumbPage className="truncate">Home</BreadcrumbPage>
+          </BreadcrumbItem>
+        ) : null}
+      </BreadcrumbList>
+    </Breadcrumb>
   );
 }
 
@@ -2374,7 +2523,7 @@ function ContinueWatchingPanel({
   );
 }
 
-function DownloadHistoryDropdown({
+function DownloadHistoryDrawer({
   jobs,
   loading,
   mutating,
@@ -2390,8 +2539,8 @@ function DownloadHistoryDropdown({
   const activeCount = jobs.filter((job) => isActiveDownloadStatus(job.status)).length;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <Drawer direction="right">
+      <DrawerTrigger asChild>
         <Button
           aria-label="Open download history"
           className="relative"
@@ -2406,18 +2555,22 @@ function DownloadHistoryDropdown({
             </span>
           ) : null}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-[min(30rem,calc(100vw-2rem))] p-0"
-      >
-        <div className="border-b px-4 py-3">
-          <DropdownMenuLabel className="p-0">Downloads</DropdownMenuLabel>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {loading ? 'Refreshing download status' : 'Tracked local download jobs'}
-          </p>
-        </div>
-        <div className="max-h-[min(70vh,34rem)] space-y-3 overflow-y-auto p-3">
+      </DrawerTrigger>
+      <DrawerContent className="h-svh w-[min(30rem,calc(100vw-1rem))] max-w-none overflow-hidden sm:max-w-md">
+        <DrawerHeader className="flex-row items-start justify-between gap-4 border-b">
+          <div className="min-w-0 space-y-1">
+            <DrawerTitle>Downloads</DrawerTitle>
+            <DrawerDescription>
+              {loading ? 'Refreshing download status' : 'Tracked local download jobs'}
+            </DrawerDescription>
+          </div>
+          <DrawerClose asChild>
+            <Button aria-label="Close downloads" size="icon" type="button" variant="ghost">
+              <X />
+            </Button>
+          </DrawerClose>
+        </DrawerHeader>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
           {jobs.length ? (
             jobs.map((job) => (
               <DownloadJobRow
@@ -2434,8 +2587,8 @@ function DownloadHistoryDropdown({
             </p>
           )}
         </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </DrawerContent>
+    </Drawer>
   );
 }
 
