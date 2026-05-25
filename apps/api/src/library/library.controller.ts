@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Header,
   NotFoundException,
@@ -69,6 +70,11 @@ export class LibraryController {
       end: range.end,
       start: range.start,
     }).pipe(response);
+  }
+
+  @Delete('files/:id')
+  deleteFile(@Param('id') id: string) {
+    return this.library.deleteFile(id);
   }
 }
 

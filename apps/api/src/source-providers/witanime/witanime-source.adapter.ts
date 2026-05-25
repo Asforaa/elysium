@@ -232,6 +232,7 @@ export class WitAnimeSourceAdapter implements SourceProviderAdapter {
         providerLabel,
         hostProvider: normalizeStreamingHostProvider(providerLabel, embedUrl),
         embedUrl,
+        ...getStreamingCapability(providerLabel, embedUrl),
         sourcePageUrl: absoluteUrl,
       });
     });
@@ -519,6 +520,24 @@ function appendYonaplayApiKey(url: string) {
   }
 
   return `${url}&apiKey=${WITANIME_YONAPLAY_API_KEY}`;
+}
+
+function getStreamingCapability(
+  label: string,
+  embedUrl: string,
+): Pick<StreamingOption, 'embeddable' | 'unsupportedReason'> {
+  const hostProvider = normalizeStreamingHostProvider(label, embedUrl);
+
+  if (hostProvider === 'yonaplay') {
+    return {
+      embeddable: false,
+      unsupportedReason: 'Host blocks local embeds by referrer policy',
+    };
+  }
+
+  return {
+    embeddable: true,
+  };
 }
 
 function normalizeText(value: string | undefined): string {

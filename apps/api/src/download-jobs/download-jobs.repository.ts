@@ -141,6 +141,15 @@ export class DownloadJobsRepository {
     return result.rows[0] ? mapDownloadJob(result.rows[0]) : undefined;
   }
 
+  async deleteJob(id: string) {
+    const result = await this.database.query<DownloadJobRow>(
+      'delete from download_jobs where id = $1 returning *',
+      [id],
+    );
+
+    return result.rows[0] ? mapDownloadJob(result.rows[0]) : undefined;
+  }
+
   async updateJob(id: string, patch: DownloadJobPatch) {
     const updates = toDownloadJobUpdate(patch);
 
@@ -353,6 +362,15 @@ export class DownloadJobsRepository {
     const result = await this.database.query<LocalMediaFileRow>(
       'select * from local_media_files where id = $1',
       [id],
+    );
+
+    return result.rows[0] ? mapLocalMediaFile(result.rows[0]) : undefined;
+  }
+
+  async getLocalMediaFileByJobId(downloadJobId: string) {
+    const result = await this.database.query<LocalMediaFileRow>(
+      'select * from local_media_files where download_job_id = $1',
+      [downloadJobId],
     );
 
     return result.rows[0] ? mapLocalMediaFile(result.rows[0]) : undefined;

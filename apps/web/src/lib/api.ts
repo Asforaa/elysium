@@ -111,12 +111,20 @@ export async function retryDownload(id: string): Promise<DownloadJob> {
   return sendJson(`/downloads/${id}/retry`, {});
 }
 
+export async function deleteDownloadJob(id: string): Promise<DownloadJob> {
+  return deleteJson(`/downloads/${id}`);
+}
+
 export async function listLocalMediaFiles(): Promise<LocalMediaFile[]> {
   return getJson('/library/files');
 }
 
 export async function listDownloadedAnime(): Promise<DownloadedAnime[]> {
   return getJson('/library/anime');
+}
+
+export async function deleteLocalMediaFile(id: string): Promise<DownloadJob> {
+  return deleteJson(`/library/files/${id}`);
 }
 
 export function getLocalMediaStreamUrl(id: string): string {
@@ -171,6 +179,19 @@ async function sendJson<T>(path: string, body: unknown): Promise<T> {
       'content-type': 'application/json',
     },
     method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response));
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function deleteJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: 'include',
+    method: 'DELETE',
   });
 
   if (!response.ok) {

@@ -207,6 +207,8 @@ export interface StreamingOption {
   providerLabel: string;
   hostProvider: HostProviderId;
   embedUrl: string;
+  embeddable?: boolean;
+  unsupportedReason?: string;
   sourcePageUrl: string;
 }
 

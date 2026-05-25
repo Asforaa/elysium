@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -38,5 +39,10 @@ export class DownloadJobsController {
   @Post(':id/retry')
   retryJob(@Param('id') id: string) {
     return this.downloadJobs.retryJob(id);
+  }
+
+  @Delete(':id')
+  deleteJob(@Param('id') id: string) {
+    return this.downloadJobs.deleteJob(id);
   }
 }

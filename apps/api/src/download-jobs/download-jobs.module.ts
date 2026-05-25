@@ -8,6 +8,6 @@ import { DownloadJobsService } from './download-jobs.service';
   imports: [DatabaseModule],
   controllers: [DownloadJobsController],
   providers: [DownloadJobsRepository, DownloadJobsService],
-  exports: [DownloadJobsRepository],
+  exports: [DownloadJobsRepository, DownloadJobsService],
 })
 export class DownloadJobsModule {}

@@ -84,6 +84,35 @@ export class DownloadJobsService implements OnModuleInit {
     return job;
   }
 
+  async deleteJob(id: string): Promise<DownloadJob> {
+    const job = await this.getJob(id);
+
+    if (ACTIVE_DOWNLOAD_STATUSES.includes(job.status)) {
+      throw new BadRequestException('Active downloads cannot be deleted yet');
+    }
+
+    const localFile = await this.repository.getLocalMediaFileByJobId(job.id);
+
+    await this.removeLocalFile(localFile?.filePath ?? job.destinationPath);
+    const deleted = await this.repository.deleteJob(job.id);
+
+    if (!deleted) {
+      throw new NotFoundException(`Unknown download job: ${id}`);
+    }
+
+    return deleted;
+  }
+
+  async deleteLocalMediaFile(id: string): Promise<DownloadJob> {
+    const localFile = await this.repository.getLocalMediaFile(id);
+
+    if (!localFile) {
+      throw new NotFoundException(`Unknown local media file: ${id}`);
+    }
+
+    return this.deleteJob(localFile.downloadJobId);
+  }
+
   async retryJob(id: string): Promise<DownloadJob> {
     const job = await this.getJob(id);
 
@@ -119,7 +148,7 @@ export class DownloadJobsService implements OnModuleInit {
       ) {
         const completedAt = new Date().toISOString();
 
-        await this.removePartialDownload(job.destinationPath);
+        await this.removeLocalFile(job.destinationPath);
         await this.repository.updateJob(job.id, {
           completedAt,
           destinationPath: null,
@@ -281,7 +310,7 @@ export class DownloadJobsService implements OnModuleInit {
         status: 'failed',
         totalBytes: null,
       });
-      await this.removePartialDownload(partialDestinationPath);
+      await this.removeLocalFile(partialDestinationPath);
       await this.repository.updateAttempt(job.id, attemptNumber, {
         completedAt: failedAt,
         destinationPath: null,
@@ -408,7 +437,7 @@ export class DownloadJobsService implements OnModuleInit {
 
     const completedAt = new Date().toISOString();
 
-    await this.removePartialDownload(job.destinationPath);
+    await this.removeLocalFile(job.destinationPath);
     await this.repository.updateJob(job.id, {
       completedAt,
       destinationPath: null,
@@ -427,7 +456,7 @@ export class DownloadJobsService implements OnModuleInit {
     });
   }
 
-  private async removePartialDownload(destinationPath?: string) {
+  private async removeLocalFile(destinationPath?: string) {
     if (!destinationPath || !isInsideDownloadDir(destinationPath)) {
       return;
     }

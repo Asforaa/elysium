@@ -5,7 +5,8 @@ import type {
   FormEvent,
   SyntheticEvent,
 } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import ReactPlayer from 'react-player';
 import {
@@ -18,10 +19,13 @@ import {
   Home,
   LogOut,
   Moon,
+  Play,
   Plus,
+  RotateCcw,
   Search,
   SlidersHorizontal,
   Sun,
+  Trash2,
   Tv,
   User,
   X,
@@ -40,19 +44,26 @@ import type {
   EpisodeSummary,
   LocalMediaFile,
   MediaSearchResult,
+  PlaybackProgress,
+  SavePlaybackProgressRequest,
   StreamingOption,
 } from '@elysium/shared';
 import {
+  deleteDownloadJob,
+  deleteLocalMediaFile,
   getAnimeMetadata,
   getAuthSession,
   getDownloadOptions,
   getEpisodes,
   getLocalMediaStreamUrl,
+  getPlaybackProgress,
   getStreamingOptions,
   listDownloadedAnime,
+  listContinueWatching,
   listLocalMediaFiles,
   listDownloadJobs,
   retryDownload,
+  savePlaybackProgress,
   searchAnimeMetadata,
   searchMedia,
   startDownload,
@@ -128,6 +139,7 @@ const EMPTY_DOWNLOAD_JOBS: DownloadJob[] = [];
 const EMPTY_LOCAL_MEDIA_FILES: LocalMediaFile[] = [];
 const EMPTY_DOWNLOADED_ANIME: DownloadedAnime[] = [];
 const EMPTY_STREAMING_OPTIONS: StreamingOption[] = [];
+const EMPTY_PLAYBACK_PROGRESS: PlaybackProgress[] = [];
 const PROFILE_PHOTO_SIZE = 256;
 const PROFILE_PHOTO_QUALITY = 0.82;
 const MAX_PROFILE_PHOTO_SOURCE_BYTES = 10 * 1024 * 1024;
@@ -187,6 +199,7 @@ function App({
   routeAnimeSlug?: string;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [animeQuery, setAnimeQuery] = useState(routeAnimeSearchQuery);
   const [animeSearchSort, setAnimeSearchSort] =
     useState<AnimeMetadataSearchSort>(routeAnimeSearchSort);
@@ -315,6 +328,13 @@ function App({
   });
   const downloadedAnime =
     downloadedAnimeQuery.data ?? EMPTY_DOWNLOADED_ANIME;
+  const continueWatchingQuery = useQuery({
+    queryKey: ['playback', 'continue-watching'],
+    queryFn: listContinueWatching,
+    refetchInterval: 10_000,
+  });
+  const continueWatching =
+    continueWatchingQuery.data ?? EMPTY_PLAYBACK_PROGRESS;
   const selectedEpisodeFiles = useMemo(
     () =>
       getLocalFilesForEpisode({
@@ -340,15 +360,25 @@ function App({
     mutationFn: ({ mediaContext, option }: StartDownloadInput) =>
       startDownload(option, mediaContext),
     onSuccess: () => {
-      void downloadJobsQuery.refetch();
-      void localMediaFilesQuery.refetch();
+      void refetchLocalLibraryQueries(queryClient);
     },
   });
   const retryDownloadMutation = useMutation({
     mutationFn: retryDownload,
     onSuccess: () => {
-      void downloadJobsQuery.refetch();
-      void localMediaFilesQuery.refetch();
+      void refetchLocalLibraryQueries(queryClient);
+    },
+  });
+  const deleteDownloadJobMutation = useMutation({
+    mutationFn: deleteDownloadJob,
+    onSuccess: () => {
+      void refetchLocalLibraryQueries(queryClient);
+    },
+  });
+  const deleteLocalFileMutation = useMutation({
+    mutationFn: deleteLocalMediaFile,
+    onSuccess: () => {
+      void refetchLocalLibraryQueries(queryClient);
     },
   });
 
@@ -441,6 +471,47 @@ function App({
     });
   }
 
+  function handleLocalEpisodeSelect(file: LocalMediaFile) {
+    if (!file.metadataId || !file.episodeNumber) {
+      return;
+    }
+
+    void navigate({
+      params: {
+        animeId: String(file.metadataId),
+        episodeNumber: file.episodeNumber,
+        slug: slugFromTitle(file.displayTitle ?? file.sourceMediaTitle ?? file.filename),
+      },
+      to: '/anime/$animeId/$slug/episode/$episodeNumber',
+    });
+  }
+
+  function handleContinueWatchingSelect(progress: PlaybackProgress) {
+    const file = progress.localMediaFileId
+      ? localMediaFiles.find((candidate) => candidate.id === progress.localMediaFileId)
+      : undefined;
+    const metadataId = file?.metadataId ?? progress.metadataId;
+    const episodeNumber = file?.episodeNumber ?? progress.episodeNumber;
+
+    if (!metadataId || !episodeNumber) {
+      return;
+    }
+
+    void navigate({
+      params: {
+        animeId: String(metadataId),
+        episodeNumber,
+        slug: slugFromTitle(
+          file?.displayTitle ??
+            file?.sourceMediaTitle ??
+            progress.mediaTitle ??
+            'anime',
+        ),
+      },
+      to: '/anime/$animeId/$slug/episode/$episodeNumber',
+    });
+  }
+
   return (
     <SidebarProvider>
       <ElysiumSidebar
@@ -478,21 +549,17 @@ function App({
             {downloadsRoute ? (
               <DownloadsPage
                 anime={downloadedAnime}
+                jobs={downloadJobs}
                 loading={downloadedAnimeQuery.isFetching}
-                onEpisodeSelect={(anime, file) => {
-                  if (!anime.metadataId || !file.episodeNumber) {
-                    return;
-                  }
-
-                  void navigate({
-                    params: {
-                      animeId: String(anime.metadataId),
-                      episodeNumber: file.episodeNumber,
-                      slug: slugFromTitle(anime.displayTitle),
-                    },
-                    to: '/anime/$animeId/$slug/episode/$episodeNumber',
-                  });
-                }}
+                mutating={
+                  deleteDownloadJobMutation.isPending ||
+                  deleteLocalFileMutation.isPending ||
+                  retryDownloadMutation.isPending
+                }
+                onDeleteFile={(file) => deleteLocalFileMutation.mutate(file.id)}
+                onDeleteJob={(job) => deleteDownloadJobMutation.mutate(job.id)}
+                onEpisodeSelect={(_anime, file) => handleLocalEpisodeSelect(file)}
+                onRetryJob={(job) => retryDownloadMutation.mutate(job.id)}
               />
             ) : null}
 
@@ -655,13 +722,30 @@ function App({
 
             {!downloadsRoute ? (
               <>
+                {!showingAnimeSearch && !animeDetails ? (
+                  <ContinueWatchingPanel
+                    files={localMediaFiles}
+                    items={continueWatching}
+                    loading={continueWatchingQuery.isFetching}
+                    onResume={handleContinueWatchingSelect}
+                  />
+                ) : null}
                 <DownloadQueue
                   jobs={downloadJobs}
                   loading={downloadJobsQuery.isFetching}
+                  mutating={
+                    deleteDownloadJobMutation.isPending ||
+                    retryDownloadMutation.isPending
+                  }
+                  onDelete={(job) => deleteDownloadJobMutation.mutate(job.id)}
+                  onRetry={(job) => retryDownloadMutation.mutate(job.id)}
                 />
                 <LocalLibrary
                   files={localMediaFiles}
                   loading={localMediaFilesQuery.isFetching}
+                  mutating={deleteLocalFileMutation.isPending}
+                  onDelete={(file) => deleteLocalFileMutation.mutate(file.id)}
+                  onPlay={handleLocalEpisodeSelect}
                 />
               </>
             ) : null}
@@ -897,13 +981,27 @@ function AnimeSearchResultCard({
 
 function DownloadsPage({
   anime,
+  jobs,
   loading,
+  mutating,
+  onDeleteFile,
+  onDeleteJob,
   onEpisodeSelect,
+  onRetryJob,
 }: {
   anime: DownloadedAnime[];
+  jobs: DownloadJob[];
   loading: boolean;
+  mutating: boolean;
+  onDeleteFile: (file: LocalMediaFile) => void;
+  onDeleteJob: (job: DownloadJob) => void;
   onEpisodeSelect: (anime: DownloadedAnime, file: LocalMediaFile) => void;
+  onRetryJob: (job: DownloadJob) => void;
 }) {
+  const failedJobs = jobs.filter(
+    (job) => job.status === 'failed' || job.status === 'cancelled',
+  );
+
   return (
     <section className="space-y-4">
       <div>
@@ -912,6 +1010,25 @@ function DownloadsPage({
           Downloaded anime grouped by local files.
         </p>
       </div>
+      {failedJobs.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Needs Attention</CardTitle>
+            <CardDescription>Failed or cancelled jobs kept for retry.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {failedJobs.map((job) => (
+              <DownloadJobRow
+                job={job}
+                key={job.id}
+                mutating={mutating}
+                onDelete={onDeleteJob}
+                onRetry={onRetryJob}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
       {loading ? <ResultSkeleton /> : null}
       {!loading && anime.length ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -942,21 +1059,35 @@ function DownloadsPage({
                     {item.files
                       .toSorted(compareLocalMediaFiles)
                       .map((file) => (
-                        <Button
-                          className="justify-between"
-                          disabled={!item.metadataId || !file.episodeNumber}
+                        <div
+                          className="flex items-center gap-2 rounded-lg border p-2"
                           key={file.id}
-                          type="button"
-                          variant="outline"
-                          onClick={() => onEpisodeSelect(item, file)}
                         >
-                          <span>
-                            {file.episodeNumber
-                              ? `Episode ${file.episodeNumber}`
-                              : file.episodeTitle ?? 'Episode'}
-                          </span>
-                          <Badge variant="secondary">{file.quality}</Badge>
-                        </Button>
+                          <Button
+                            className="min-w-0 flex-1 justify-between"
+                            disabled={!item.metadataId || !file.episodeNumber}
+                            type="button"
+                            variant="ghost"
+                            onClick={() => onEpisodeSelect(item, file)}
+                          >
+                            <span className="truncate">
+                              {file.episodeNumber
+                                ? `Episode ${file.episodeNumber}`
+                                : file.episodeTitle ?? 'Episode'}
+                            </span>
+                            <Badge variant="secondary">{file.quality}</Badge>
+                          </Button>
+                          <Button
+                            aria-label={`Delete ${file.filename}`}
+                            disabled={mutating}
+                            size="icon"
+                            type="button"
+                            variant="ghost"
+                            onClick={() => onDeleteFile(file)}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </div>
                       ))}
                   </div>
                 </div>
@@ -989,16 +1120,107 @@ function EpisodeWatchPanel({
   streamingOptions: StreamingOption[];
   streamingOptionsLoading: boolean;
 }) {
+  const queryClient = useQueryClient();
+  const progressSaveMutation = useMutation({
+    mutationFn: savePlaybackProgress,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['playback', 'continue-watching'],
+      });
+    },
+  });
   const [selectedLocalFileId, setSelectedLocalFileId] = useState<string>();
   const [selectedStreamIndex, setSelectedStreamIndex] = useState(0);
+  const lastProgressSaveRef = useRef(0);
+  const restoredProgressKeyRef = useRef<string | undefined>(undefined);
   const selectedLocalFile =
     localFiles.find((file) => file.id === selectedLocalFileId) ?? localFiles[0];
-  const selectedStream = streamingOptions[selectedStreamIndex] ?? streamingOptions[0];
+  const playableStreams = useMemo(
+    () =>
+      streamingOptions
+        .filter((option) => option.embeddable !== false)
+        .toSorted(compareStreamingOptions),
+    [streamingOptions],
+  );
+  const blockedStreams = useMemo(
+    () => streamingOptions.filter((option) => option.embeddable === false),
+    [streamingOptions],
+  );
+  const selectedStream =
+    playableStreams[selectedStreamIndex] ?? playableStreams[0];
+  const playbackProgressQuery = useQuery({
+    queryKey: ['playback', 'progress', selectedLocalFile?.id],
+    queryFn: () =>
+      selectedLocalFile
+        ? getPlaybackProgress({ localMediaFileId: selectedLocalFile.id })
+        : undefined,
+    enabled: Boolean(selectedLocalFile?.id),
+  });
 
   useEffect(() => {
     setSelectedLocalFileId(undefined);
     setSelectedStreamIndex(0);
+    restoredProgressKeyRef.current = undefined;
   }, [episode?.url]);
+
+  useEffect(() => {
+    setSelectedStreamIndex(0);
+  }, [playableStreams.map((option) => option.embedUrl).join('|')]);
+
+  function saveLocalProgress(
+    event: SyntheticEvent<HTMLVideoElement>,
+    completed = false,
+    force = false,
+  ) {
+    if (!selectedLocalFile) {
+      return;
+    }
+
+    const video = event.currentTarget;
+    const now = Date.now();
+
+    if (!force && now - lastProgressSaveRef.current < 7_500) {
+      return;
+    }
+
+    lastProgressSaveRef.current = now;
+    progressSaveMutation.mutate(
+      createPlaybackProgressRequest({
+        anime,
+        completed,
+        episode,
+        file: selectedLocalFile,
+        positionSeconds: video.currentTime,
+        routeEpisodeNumber,
+        durationSeconds: Number.isFinite(video.duration)
+          ? video.duration
+          : undefined,
+      }),
+    );
+  }
+
+  function restoreLocalProgress(event: SyntheticEvent<HTMLVideoElement>) {
+    const progress = playbackProgressQuery.data;
+
+    if (!selectedLocalFile || !progress || progress.completed) {
+      return;
+    }
+
+    const video = event.currentTarget;
+    const restoreKey = `${selectedLocalFile.id}:${progress.updatedAt}`;
+
+    if (
+      restoredProgressKeyRef.current === restoreKey ||
+      progress.positionSeconds < 5 ||
+      (Number.isFinite(video.duration) &&
+        progress.positionSeconds > video.duration - 5)
+    ) {
+      return;
+    }
+
+    restoredProgressKeyRef.current = restoreKey;
+    video.currentTime = progress.positionSeconds;
+  }
 
   return (
     <Card>
@@ -1026,8 +1248,29 @@ function EpisodeWatchPanel({
                 height="100%"
                 src={getLocalMediaStreamUrl(selectedLocalFile.id)}
                 width="100%"
+                onEnded={(event) => saveLocalProgress(event, true, true)}
+                onLoadedMetadata={restoreLocalProgress}
+                onPause={(event) => saveLocalProgress(event, false, true)}
+                onTimeUpdate={(event) => saveLocalProgress(event)}
               />
             </div>
+            {playbackProgressQuery.data &&
+            !playbackProgressQuery.data.completed ? (
+              <div className="space-y-1">
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-primary"
+                    style={{
+                      width: `${getPlaybackProgressPercent(playbackProgressQuery.data)}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Resume point:{' '}
+                  {formatDuration(playbackProgressQuery.data.positionSeconds)}
+                </p>
+              </div>
+            ) : null}
             {localFiles.length > 1 ? (
               <div className="flex flex-wrap gap-2">
                 {localFiles.map((file) => (
@@ -1059,7 +1302,7 @@ function EpisodeWatchPanel({
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              {streamingOptions.map((option, index) => (
+              {playableStreams.map((option, index) => (
                 <Button
                   key={`${option.providerLabel}-${option.embedUrl}`}
                   size="sm"
@@ -1071,6 +1314,18 @@ function EpisodeWatchPanel({
                 </Button>
               ))}
             </div>
+            {blockedStreams.length ? (
+              <div className="flex flex-wrap gap-2">
+                {blockedStreams.map((option) => (
+                  <Badge
+                    key={`${option.providerLabel}-${option.embedUrl}`}
+                    variant="outline"
+                  >
+                    {option.providerLabel}: {option.unsupportedReason ?? 'Unavailable'}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
           </>
         ) : streamingOptionsLoading ? (
           <ResultSkeleton />
@@ -1984,12 +2239,113 @@ function EpisodeButton({
   );
 }
 
+function ContinueWatchingPanel({
+  files,
+  items,
+  loading,
+  onResume,
+}: {
+  files: LocalMediaFile[];
+  items: PlaybackProgress[];
+  loading: boolean;
+  onResume: (progress: PlaybackProgress) => void;
+}) {
+  const fileById = useMemo(() => {
+    const map = new Map<string, LocalMediaFile>();
+
+    for (const file of files) {
+      map.set(file.id, file);
+    }
+
+    return map;
+  }, [files]);
+
+  const visibleItems = items.filter((item) => !item.completed).slice(0, 8);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Continue Watching</CardTitle>
+        <CardDescription>
+          {loading ? 'Refreshing playback progress' : 'Partially watched local episodes'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading && !visibleItems.length ? <ResultSkeleton compact /> : null}
+        {visibleItems.length ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {visibleItems.map((progress) => {
+              const file = findLocalFileForProgress(progress, fileById);
+              const percent = getPlaybackProgressPercent(progress);
+              const title =
+                file?.displayTitle ??
+                file?.sourceMediaTitle ??
+                progress.mediaTitle ??
+                'Local episode';
+              const episodeNumber = file?.episodeNumber ?? progress.episodeNumber;
+
+              return (
+                <div className="rounded-lg border p-3" key={progress.id}>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="line-clamp-2 text-sm font-medium">{title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {episodeNumber
+                          ? `Episode ${episodeNumber}`
+                          : progress.episodeTitle ?? file?.filename ?? 'Episode'}
+                      </p>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-primary"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {formatDuration(progress.positionSeconds)}
+                        {progress.durationSeconds
+                          ? ` / ${formatDuration(progress.durationSeconds)}`
+                          : ''}
+                      </span>
+                      <Button
+                        disabled={!file?.metadataId && !progress.metadataId}
+                        size="sm"
+                        type="button"
+                        onClick={() => onResume(progress)}
+                      >
+                        <Play />
+                        Resume
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        {!loading && !visibleItems.length ? (
+          <p className="text-sm text-muted-foreground">
+            Partially watched episodes will appear here after local playback starts.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 function DownloadQueue({
   jobs,
   loading,
+  mutating,
+  onDelete,
+  onRetry,
 }: {
   jobs: DownloadJob[];
   loading: boolean;
+  mutating: boolean;
+  onDelete: (job: DownloadJob) => void;
+  onRetry: (job: DownloadJob) => void;
 }) {
   return (
     <Card>
@@ -2001,7 +2357,15 @@ function DownloadQueue({
       </CardHeader>
       <CardContent className="space-y-3">
         {jobs.length ? (
-          jobs.map((job) => <DownloadJobRow job={job} key={job.id} />)
+          jobs.map((job) => (
+            <DownloadJobRow
+              job={job}
+              key={job.id}
+              mutating={mutating}
+              onDelete={onDelete}
+              onRetry={onRetry}
+            />
+          ))
         ) : (
           <p className="text-sm text-muted-foreground">No downloads started yet.</p>
         )}
@@ -2013,9 +2377,15 @@ function DownloadQueue({
 function LocalLibrary({
   files,
   loading,
+  mutating,
+  onDelete,
+  onPlay,
 }: {
   files: LocalMediaFile[];
   loading: boolean;
+  mutating: boolean;
+  onDelete: (file: LocalMediaFile) => void;
+  onPlay: (file: LocalMediaFile) => void;
 }) {
   return (
     <Card>
@@ -2035,6 +2405,7 @@ function LocalLibrary({
                 <TableHead>Quality</TableHead>
                 <TableHead>Size</TableHead>
                 <TableHead>Path</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2057,6 +2428,30 @@ function LocalLibrary({
                   <TableCell className="max-w-[22rem] truncate font-mono text-xs">
                     {file.filePath}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        aria-label={`Play ${file.filename}`}
+                        disabled={!file.metadataId || !file.episodeNumber}
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => onPlay(file)}
+                      >
+                        <Play />
+                      </Button>
+                      <Button
+                        aria-label={`Delete ${file.filename}`}
+                        disabled={mutating}
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => onDelete(file)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -2071,8 +2466,20 @@ function LocalLibrary({
   );
 }
 
-function DownloadJobRow({ job }: { job: DownloadJob }) {
+function DownloadJobRow({
+  job,
+  mutating = false,
+  onDelete,
+  onRetry,
+}: {
+  job: DownloadJob;
+  mutating?: boolean;
+  onDelete?: (job: DownloadJob) => void;
+  onRetry?: (job: DownloadJob) => void;
+}) {
   const percent = getDownloadProgressPercent(job);
+  const retryable = job.status === 'failed' || job.status === 'cancelled';
+  const active = isActiveDownloadStatus(job.status);
 
   return (
     <div className="space-y-2 rounded-lg border p-3">
@@ -2089,10 +2496,36 @@ function DownloadJobRow({ job }: { job: DownloadJob }) {
               job.attemptCount > 1 ? `Attempt ${job.attemptCount}` : undefined,
             ]
               .filter(Boolean)
-              .join(' | ')}
+            .join(' | ')}
           </p>
         </div>
-        <JobStatusBadge job={job} />
+        <div className="flex flex-wrap items-center gap-2">
+          <JobStatusBadge job={job} />
+          {retryable && onRetry ? (
+            <Button
+              disabled={mutating}
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={() => onRetry(job)}
+            >
+              <RotateCcw />
+              Retry
+            </Button>
+          ) : null}
+          {onDelete ? (
+            <Button
+              aria-label={`Delete ${job.filename ?? job.option.providerLabel}`}
+              disabled={mutating || active}
+              size="icon"
+              type="button"
+              variant="ghost"
+              onClick={() => onDelete(job)}
+            >
+              <Trash2 />
+            </Button>
+          ) : null}
+        </div>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
         <div
@@ -2144,6 +2577,138 @@ function ErrorText({ error }: { error: Error }) {
       <p className="text-sm text-destructive">{error.message}</p>
     </>
   );
+}
+
+function refetchLocalLibraryQueries(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['downloads'] }),
+    queryClient.invalidateQueries({ queryKey: ['library'] }),
+    queryClient.invalidateQueries({ queryKey: ['playback', 'continue-watching'] }),
+  ]);
+}
+
+function createPlaybackProgressRequest({
+  anime,
+  completed,
+  durationSeconds,
+  episode,
+  file,
+  positionSeconds,
+  routeEpisodeNumber,
+}: {
+  anime: AnimeMetadataDetails;
+  completed: boolean;
+  durationSeconds?: number;
+  episode: EpisodeSummary | undefined;
+  file: LocalMediaFile;
+  positionSeconds: number;
+  routeEpisodeNumber?: string;
+}): SavePlaybackProgressRequest {
+  return {
+    completed,
+    durationSeconds,
+    episodeNumber:
+      normalizeEpisodeNumber(file.episodeNumber) ??
+      normalizeEpisodeNumber(episode?.number) ??
+      normalizeEpisodeNumber(routeEpisodeNumber) ??
+      file.episodeNumber ??
+      episode?.number ??
+      routeEpisodeNumber,
+    episodeTitle: file.episodeTitle ?? episode?.title,
+    episodeUrl: episode?.url,
+    localMediaFileId: file.id,
+    mediaTitle: file.displayTitle ?? file.sourceMediaTitle ?? anime.displayTitle,
+    metadataId: file.metadataId ?? anime.id,
+    metadataProvider: file.metadataProvider ?? anime.metadataProvider,
+    positionSeconds: Math.max(0, positionSeconds),
+    sourceMediaUrl: file.sourceMediaUrl,
+    sourceProvider: file.sourceProvider ?? episode?.sourceProvider,
+  };
+}
+
+function findLocalFileForProgress(
+  progress: PlaybackProgress,
+  fileById: Map<string, LocalMediaFile>,
+) {
+  if (!progress.localMediaFileId) {
+    return undefined;
+  }
+
+  return fileById.get(progress.localMediaFileId);
+}
+
+function getPlaybackProgressPercent(progress: PlaybackProgress) {
+  if (!progress.durationSeconds || progress.durationSeconds <= 0) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.min(100, (progress.positionSeconds / progress.durationSeconds) * 100),
+  );
+}
+
+function formatDuration(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '0:00';
+  }
+
+  const totalSeconds = Math.floor(seconds);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(
+      remainingSeconds,
+    ).padStart(2, '0')}`;
+  }
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+function compareStreamingOptions(first: StreamingOption, second: StreamingOption) {
+  const embeddableRank =
+    Number(first.embeddable === false) - Number(second.embeddable === false);
+
+  if (embeddableRank !== 0) {
+    return embeddableRank;
+  }
+
+  return (
+    getStreamingHostRank(first) - getStreamingHostRank(second) ||
+    first.providerLabel.localeCompare(second.providerLabel)
+  );
+}
+
+function getStreamingHostRank(option: StreamingOption) {
+  const label = `${option.hostProvider} ${option.providerLabel}`.toLowerCase();
+
+  if (label.includes('videa')) {
+    return 0;
+  }
+
+  if (label.includes('streamwish') && label.includes('fhd')) {
+    return 1;
+  }
+
+  if (label.includes('streamwish')) {
+    return 2;
+  }
+
+  if (label.includes('dailymotion')) {
+    return 3;
+  }
+
+  if (label.includes('mp4upload')) {
+    return 4;
+  }
+
+  if (label.includes('yonaplay')) {
+    return 99;
+  }
+
+  return 10;
 }
 
 function getDownloadSupport(option: DownloadOption) {
