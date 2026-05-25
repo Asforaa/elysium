@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ComponentProps, FormEvent, SyntheticEvent } from 'react';
+import type {
+  ChangeEvent,
+  ComponentProps,
+  FormEvent,
+  SyntheticEvent,
+} from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import {
@@ -41,7 +46,7 @@ import {
   logoutUser,
   signupUser,
 } from '@/lib/api';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -609,6 +614,9 @@ function AccountControls() {
   const [authDialogMode, setAuthDialogMode] = useState<AuthDialogMode | null>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [authName, setAuthName] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authProfilePhotoDataUrl, setAuthProfilePhotoDataUrl] = useState('');
+  const [authProfilePhotoName, setAuthProfilePhotoName] = useState('');
   const authSessionQuery = useQuery({
     queryKey: ['auth', 'session'],
     queryFn: getAuthSession,
@@ -652,6 +660,7 @@ function AccountControls() {
   function openAuthDialog(mode: AuthDialogMode) {
     loginMutation.reset();
     signupMutation.reset();
+    setAuthPassword('');
     setAuthDialogMode(mode);
   }
 
@@ -661,6 +670,9 @@ function AccountControls() {
     const credentials = {
       email: authEmail,
       name: authName,
+      password: authPassword,
+      profilePhotoDataUrl:
+        authDialogMode === 'signup' ? authProfilePhotoDataUrl : undefined,
     };
 
     if (authDialogMode === 'signup') {
@@ -669,6 +681,27 @@ function AccountControls() {
     }
 
     loginMutation.mutate(credentials);
+  }
+
+  function handleProfilePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      setAuthProfilePhotoDataUrl('');
+      setAuthProfilePhotoName('');
+      return;
+    }
+
+    setAuthProfilePhotoName(file.name);
+
+    const reader = new FileReader();
+
+    reader.addEventListener('load', () => {
+      if (typeof reader.result === 'string') {
+        setAuthProfilePhotoDataUrl(reader.result);
+      }
+    });
+    reader.readAsDataURL(file);
   }
 
   if (!user) {
@@ -698,25 +731,60 @@ function AccountControls() {
             Sign up
           </Button>
         </div>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{authDialogTitle}</DialogTitle>
-            <DialogDescription>{authDialogDescription}</DialogDescription>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader className="items-center text-center">
+            <DialogTitle className="text-2xl">{authDialogTitle}</DialogTitle>
+            <DialogDescription className="max-w-sm text-center">
+              {authDialogDescription}
+            </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleAuthSubmit}>
             {authDialogMode === 'signup' ? (
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="auth-name">
-                  Name
-                </label>
-                <Input
-                  autoComplete="name"
-                  id="auth-name"
-                  placeholder="Asforaa"
-                  value={authName}
-                  onChange={(event) => setAuthName(event.target.value)}
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" htmlFor="auth-name">
+                    Name
+                  </label>
+                  <Input
+                    autoComplete="name"
+                    id="auth-name"
+                    placeholder="Asforaa"
+                    value={authName}
+                    onChange={(event) => setAuthName(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" htmlFor="auth-photo">
+                    Profile photo
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="size-12">
+                      {authProfilePhotoDataUrl ? (
+                        <AvatarImage
+                          alt="Selected profile preview"
+                          src={authProfilePhotoDataUrl}
+                        />
+                      ) : null}
+                      <AvatarFallback>
+                        {createAuthPreviewInitials(authName, authEmail)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <Input
+                        accept="image/*"
+                        id="auth-photo"
+                        type="file"
+                        onChange={handleProfilePhotoChange}
+                      />
+                      {authProfilePhotoName ? (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {authProfilePhotoName}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </>
             ) : null}
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="auth-email">
@@ -726,9 +794,27 @@ function AccountControls() {
                 autoComplete="email"
                 id="auth-email"
                 placeholder="asforaa@elysium.local"
+                required
                 type="email"
                 value={authEmail}
                 onChange={(event) => setAuthEmail(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="auth-password">
+                Password
+              </label>
+              <Input
+                autoComplete={
+                  authDialogMode === 'signup' ? 'new-password' : 'current-password'
+                }
+                id="auth-password"
+                minLength={8}
+                placeholder="At least 8 characters"
+                required
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
               />
             </div>
             {activeAuthMutation.isError ? (
@@ -763,6 +849,9 @@ function AccountControls() {
           variant="outline"
         >
           <Avatar className="size-8">
+            {user.profilePhotoDataUrl ? (
+              <AvatarImage alt={`${user.name} profile photo`} src={user.profilePhotoDataUrl} />
+            ) : null}
             <AvatarFallback>{user.initials}</AvatarFallback>
           </Avatar>
         </Button>
@@ -819,6 +908,19 @@ function ThemeToggle({
       {isDark ? 'Light' : 'Dark'}
     </Button>
   );
+}
+
+function createAuthPreviewInitials(name: string, email: string) {
+  const nameParts = name.trim().split(/\s+/u).filter(Boolean);
+
+  if (nameParts.length) {
+    return nameParts
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('');
+  }
+
+  return email.trim()[0]?.toUpperCase() ?? 'A';
 }
 
 function AnimeAutocomplete({

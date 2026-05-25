@@ -3,6 +3,7 @@ export interface AuthUser {
   email: string;
   initials: string;
   name: string;
+  profilePhotoDataUrl?: string;
 }
 
 export interface AuthSessionResponse {
@@ -13,4 +14,6 @@ export interface AuthSessionResponse {
 export interface AuthCredentials {
   email?: string;
   name?: string;
+  password?: string;
+  profilePhotoDataUrl?: string;
 }

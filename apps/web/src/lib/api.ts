@@ -16,6 +16,7 @@ export interface AuthUser {
   email: string;
   initials: string;
   name: string;
+  profilePhotoDataUrl?: string;
 }
 
 export interface AuthSession {
@@ -26,6 +27,8 @@ export interface AuthSession {
 export interface AuthCredentials {
   email?: string;
   name?: string;
+  password?: string;
+  profilePhotoDataUrl?: string;
 }
 
 export async function getAuthSession(): Promise<AuthSession> {
@@ -88,7 +91,7 @@ async function getJson<T>(path: string): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    throw new Error(await getApiErrorMessage(response));
   }
 
   return response.json() as Promise<T>;
@@ -105,10 +108,23 @@ async function sendJson<T>(path: string, body: unknown): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    throw new Error(await getApiErrorMessage(response));
   }
 
   return response.json() as Promise<T>;
+}
+
+async function getApiErrorMessage(response: Response) {
+  try {
+    const payload = (await response.json()) as { message?: string | string[] };
+    const message = Array.isArray(payload.message)
+      ? payload.message.join(', ')
+      : payload.message;
+
+    return message ?? `API request failed: ${response.status} ${response.statusText}`;
+  } catch {
+    return `API request failed: ${response.status} ${response.statusText}`;
+  }
 }
 
 function resolveApiBaseUrl(): string {

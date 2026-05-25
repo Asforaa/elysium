@@ -17,7 +17,7 @@ export class AuthController {
     @Body() credentials: AuthCredentials | undefined,
     @Res({ passthrough: true }) response: Response,
   ): AuthSessionResponse {
-    const session = this.authService.createSession(credentials);
+    const session = this.authService.login(credentials);
 
     response.setHeader('Set-Cookie', session.cookie);
 
@@ -29,7 +29,7 @@ export class AuthController {
     @Body() credentials: AuthCredentials | undefined,
     @Res({ passthrough: true }) response: Response,
   ): AuthSessionResponse {
-    const session = this.authService.createSession(credentials);
+    const session = this.authService.signup(credentials);
 
     response.setHeader('Set-Cookie', session.cookie);
 

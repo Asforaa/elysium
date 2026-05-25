@@ -1,5 +1,14 @@
-import { randomUUID } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import {
+  randomBytes,
+  randomUUID,
+  scryptSync,
+  timingSafeEqual,
+} from 'node:crypto';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type {
   AuthCredentials,
   AuthSessionResponse,
@@ -8,24 +17,62 @@ import type {
 
 const AUTH_COOKIE_NAME = 'elysium_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
-const DEFAULT_USER = {
-  email: 'asforaa@elysium.local',
-  name: 'Asforaa',
-};
+const PASSWORD_KEY_LENGTH = 64;
+const MAX_PROFILE_PHOTO_DATA_URL_LENGTH = 750_000;
+
+interface StoredAuthUser extends AuthUser {
+  passwordHash: string;
+  passwordSalt: string;
+}
 
 @Injectable()
 export class AuthService {
   private readonly sessions = new Map<string, AuthUser>();
+  private readonly users = new Map<string, StoredAuthUser>();
 
-  createSession(credentials?: AuthCredentials) {
-    const name = cleanValue(credentials?.name) ?? DEFAULT_USER.name;
-    const email = cleanValue(credentials?.email) ?? DEFAULT_USER.email;
+  login(credentials?: AuthCredentials) {
+    const { email, password } = requireCredentials(credentials);
+    const user = this.users.get(email);
+
+    if (!user || !verifyPassword(password, user)) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    return this.createSession(user);
+  }
+
+  signup(credentials?: AuthCredentials) {
+    const { email, password } = requireCredentials(credentials);
+    const name =
+      cleanValue(credentials?.name) ?? email.split('@')[0] ?? 'Elysium';
+    const existingUser = this.users.get(email);
+
+    if (existingUser) {
+      throw new BadRequestException(
+        'A local account already exists for that email',
+      );
+    }
+
+    const passwordSalt = randomBytes(16).toString('hex');
     const user = {
       email,
       id: randomUUID(),
       initials: createInitials(name, email),
       name,
+      passwordHash: hashPassword(password, passwordSalt),
+      passwordSalt,
+      profilePhotoDataUrl: cleanProfilePhotoDataUrl(
+        credentials?.profilePhotoDataUrl,
+      ),
     };
+
+    this.users.set(email, user);
+
+    return this.createSession(user);
+  }
+
+  private createSession(storedUser: StoredAuthUser) {
+    const user = toPublicUser(storedUser);
     const sessionId = randomUUID();
 
     this.sessions.set(sessionId, user);
@@ -98,6 +145,79 @@ function cleanValue(value: string | undefined) {
   const trimmed = value?.trim();
 
   return trimmed ? trimmed : undefined;
+}
+
+function requireCredentials(credentials: AuthCredentials | undefined) {
+  const email = cleanValue(credentials?.email)?.toLowerCase();
+  const password = credentials?.password ?? '';
+
+  if (!email || !password) {
+    throw new BadRequestException('Email and password are required');
+  }
+
+  if (!email.includes('@')) {
+    throw new BadRequestException('A valid email is required');
+  }
+
+  if (password.length < 8) {
+    throw new BadRequestException('Password must be at least 8 characters');
+  }
+
+  return {
+    email,
+    password,
+  };
+}
+
+function hashPassword(password: string, salt: string) {
+  return scryptSync(password, salt, PASSWORD_KEY_LENGTH).toString('hex');
+}
+
+function verifyPassword(password: string, user: StoredAuthUser) {
+  const candidateHash = Buffer.from(
+    hashPassword(password, user.passwordSalt),
+    'hex',
+  );
+  const storedHash = Buffer.from(user.passwordHash, 'hex');
+
+  if (candidateHash.length !== storedHash.length) {
+    return false;
+  }
+
+  return timingSafeEqual(candidateHash, storedHash);
+}
+
+function cleanProfilePhotoDataUrl(value: string | undefined) {
+  const photo = cleanValue(value);
+
+  if (!photo) {
+    return undefined;
+  }
+
+  if (!photo.startsWith('data:image/')) {
+    throw new BadRequestException('Profile photo must be an image attachment');
+  }
+
+  if (photo.length > MAX_PROFILE_PHOTO_DATA_URL_LENGTH) {
+    throw new BadRequestException('Profile photo is too large');
+  }
+
+  return photo;
+}
+
+function toPublicUser(user: StoredAuthUser): AuthUser {
+  const publicUser: AuthUser = {
+    email: user.email,
+    id: user.id,
+    initials: user.initials,
+    name: user.name,
+  };
+
+  if (user.profilePhotoDataUrl) {
+    publicUser.profilePhotoDataUrl = user.profilePhotoDataUrl;
+  }
+
+  return publicUser;
 }
 
 function createInitials(name: string, email: string) {
