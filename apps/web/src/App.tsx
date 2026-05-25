@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ChangeEvent,
   ComponentProps,
@@ -550,6 +550,23 @@ function AnimeSearchBar({
   query: string;
   onQueryChange: (value: string) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!query) {
+      return;
+    }
+
+    const input = inputRef.current;
+
+    if (!input || document.activeElement === input) {
+      return;
+    }
+
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, [query]);
+
   return (
     <div className="relative w-full max-w-xl">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -557,6 +574,7 @@ function AnimeSearchBar({
         aria-label="Search"
         className="h-10 pl-9 pr-10"
         placeholder="search"
+        ref={inputRef}
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
       />
@@ -1949,7 +1967,7 @@ function getAnimeMetadataLine(anime: AnimeMetadataSearchResult | AnimeMetadataDe
   return [
     formatStatusWithAiringDay(anime),
     formatSeasonYear(anime),
-    formatEpisodeCount(anime.episodes),
+    isSingleEpisodeMovie(anime) ? undefined : formatEpisodeCount(anime.episodes),
     formatMediaFormat(anime.format),
   ]
     .filter(Boolean)
@@ -1997,6 +2015,12 @@ function formatEpisodeCount(episodes?: number) {
   }
 
   return `${episodes} ${episodes === 1 ? 'Episode' : 'Episodes'}`;
+}
+
+function isSingleEpisodeMovie(
+  anime: AnimeMetadataSearchResult | AnimeMetadataDetails,
+) {
+  return anime.format?.toUpperCase() === 'MOVIE' && (anime.episodes ?? 0) <= 1;
 }
 
 function formatMediaFormat(format?: string) {
