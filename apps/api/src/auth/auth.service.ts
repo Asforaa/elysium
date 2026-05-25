@@ -18,7 +18,7 @@ import type {
 const AUTH_COOKIE_NAME = 'elysium_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const PASSWORD_KEY_LENGTH = 64;
-const MAX_PROFILE_PHOTO_DATA_URL_LENGTH = 750_000;
+const MAX_PROFILE_PHOTO_DATA_URL_LENGTH = 1_500_000;
 
 interface StoredAuthUser extends AuthUser {
   passwordHash: string;

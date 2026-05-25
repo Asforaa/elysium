@@ -106,6 +106,9 @@ const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
 const EMPTY_EPISODES: EpisodeSummary[] = [];
 const EMPTY_DOWNLOAD_JOBS: DownloadJob[] = [];
 const DEFAULT_ANIME_QUERY = 'Akane-banashi';
+const PROFILE_PHOTO_SIZE = 256;
+const PROFILE_PHOTO_QUALITY = 0.82;
+const MAX_PROFILE_PHOTO_SOURCE_BYTES = 10 * 1024 * 1024;
 const MAIN_NAV_ITEMS: SidebarNavItem[] = [
   { title: 'Home', icon: Home },
   { title: 'Anime', icon: Clapperboard },
@@ -616,6 +619,9 @@ function AccountControls() {
   const [authName, setAuthName] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authProfilePhotoDataUrl, setAuthProfilePhotoDataUrl] = useState('');
+  const [authProfilePhotoError, setAuthProfilePhotoError] = useState('');
+  const [authProfilePhotoOptimizing, setAuthProfilePhotoOptimizing] =
+    useState(false);
   const [authProfilePhotoName, setAuthProfilePhotoName] = useState('');
   const authSessionQuery = useQuery({
     queryKey: ['auth', 'session'],
@@ -649,7 +655,8 @@ function AccountControls() {
     authSessionQuery.isLoading ||
     loginMutation.isPending ||
     signupMutation.isPending ||
-    logoutMutation.isPending;
+    logoutMutation.isPending ||
+    authProfilePhotoOptimizing;
   const activeAuthMutation = authDialogMode === 'signup' ? signupMutation : loginMutation;
   const authDialogTitle = authDialogMode === 'signup' ? 'Create account' : 'Login';
   const authDialogDescription =
@@ -661,6 +668,7 @@ function AccountControls() {
     loginMutation.reset();
     signupMutation.reset();
     setAuthPassword('');
+    setAuthProfilePhotoError('');
     setAuthDialogMode(mode);
   }
 
@@ -683,25 +691,46 @@ function AccountControls() {
     loginMutation.mutate(credentials);
   }
 
-  function handleProfilePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+  async function handleProfilePhotoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
     if (!file) {
       setAuthProfilePhotoDataUrl('');
+      setAuthProfilePhotoError('');
+      setAuthProfilePhotoName('');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setAuthProfilePhotoDataUrl('');
+      setAuthProfilePhotoError('Profile photo must be an image file.');
+      setAuthProfilePhotoName('');
+      return;
+    }
+
+    if (file.size > MAX_PROFILE_PHOTO_SOURCE_BYTES) {
+      setAuthProfilePhotoDataUrl('');
+      setAuthProfilePhotoError('Profile photo must be smaller than 10 MB.');
       setAuthProfilePhotoName('');
       return;
     }
 
     setAuthProfilePhotoName(file.name);
+    setAuthProfilePhotoError('');
+    setAuthProfilePhotoOptimizing(true);
 
-    const reader = new FileReader();
-
-    reader.addEventListener('load', () => {
-      if (typeof reader.result === 'string') {
-        setAuthProfilePhotoDataUrl(reader.result);
-      }
-    });
-    reader.readAsDataURL(file);
+    try {
+      setAuthProfilePhotoDataUrl(await optimizeProfilePhoto(file));
+    } catch (error) {
+      setAuthProfilePhotoDataUrl('');
+      setAuthProfilePhotoError(
+        error instanceof Error
+          ? error.message
+          : 'Could not optimize profile photo.',
+      );
+    } finally {
+      setAuthProfilePhotoOptimizing(false);
+    }
   }
 
   if (!user) {
@@ -772,13 +801,24 @@ function AccountControls() {
                     <div className="min-w-0 flex-1 space-y-1">
                       <Input
                         accept="image/*"
+                        disabled={authProfilePhotoOptimizing}
                         id="auth-photo"
                         type="file"
                         onChange={handleProfilePhotoChange}
                       />
+                      {authProfilePhotoOptimizing ? (
+                        <p className="text-xs text-muted-foreground">
+                          Optimizing image...
+                        </p>
+                      ) : null}
                       {authProfilePhotoName ? (
                         <p className="truncate text-xs text-muted-foreground">
                           {authProfilePhotoName}
+                        </p>
+                      ) : null}
+                      {authProfilePhotoError ? (
+                        <p className="text-xs text-destructive">
+                          {authProfilePhotoError}
                         </p>
                       ) : null}
                     </div>
@@ -921,6 +961,102 @@ function createAuthPreviewInitials(name: string, email: string) {
   }
 
   return email.trim()[0]?.toUpperCase() ?? 'A';
+}
+
+async function optimizeProfilePhoto(file: File) {
+  const image = await loadImage(file);
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  canvas.width = PROFILE_PHOTO_SIZE;
+  canvas.height = PROFILE_PHOTO_SIZE;
+
+  if (!context) {
+    throw new Error('Could not prepare profile photo.');
+  }
+
+  const sourceSize = Math.min(image.naturalWidth, image.naturalHeight);
+  const sourceX = Math.max(0, (image.naturalWidth - sourceSize) / 2);
+  const sourceY = Math.max(0, (image.naturalHeight - sourceSize) / 2);
+
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceSize,
+    sourceSize,
+    0,
+    0,
+    PROFILE_PHOTO_SIZE,
+    PROFILE_PHOTO_SIZE,
+  );
+
+  const blob = await canvasToBlob(
+    canvas,
+    'image/webp',
+    PROFILE_PHOTO_QUALITY,
+  );
+
+  return blobToDataUrl(blob);
+}
+
+function loadImage(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+
+    image.addEventListener('load', () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    });
+    image.addEventListener('error', () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Could not read profile photo.'));
+    });
+
+    image.src = url;
+  });
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number,
+) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+
+        reject(new Error('Could not optimize profile photo.'));
+      },
+      type,
+      quality,
+    );
+  });
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.addEventListener('load', () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error('Could not read optimized profile photo.'));
+    });
+    reader.addEventListener('error', () => {
+      reject(new Error('Could not read optimized profile photo.'));
+    });
+
+    reader.readAsDataURL(blob);
+  });
 }
 
 function AnimeAutocomplete({
