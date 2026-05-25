@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { Moon, Sun, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import type {
@@ -44,18 +45,28 @@ import {
 const EMPTY_ANIME_RESULTS: AnimeMetadataSearchResult[] = [];
 const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
 const EMPTY_EPISODES: EpisodeSummary[] = [];
+const DEFAULT_ANIME_QUERY = 'Akane-banashi';
 
 type FocusedImage = {
   alt: string;
   src: string;
 };
 
-function App() {
-  const [animeQuery, setAnimeQuery] = useState('Akane-banashi');
-  const [selectedAnime, setSelectedAnime] = useState<AnimeMetadataSearchResult | null>(null);
+function App({
+  routeAnimeId,
+  routeAnimeSlug,
+}: {
+  routeAnimeId?: number;
+  routeAnimeSlug?: string;
+}) {
+  const navigate = useNavigate();
+  const [animeQuery, setAnimeQuery] = useState(
+    routeAnimeSlug ? humanizeAnimeSlug(routeAnimeSlug) : DEFAULT_ANIME_QUERY,
+  );
   const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null);
   const [selectedEpisodeUrl, setSelectedEpisodeUrl] = useState<string | null>(null);
   const [focusedImage, setFocusedImage] = useState<FocusedImage | null>(null);
+  const selectedAnimeId = Number.isFinite(routeAnimeId) ? routeAnimeId : undefined;
 
   const providersQuery = useQuery({
     queryKey: ['providers'],
@@ -70,17 +81,19 @@ function App() {
   });
 
   const animeResults = animeSearchQuery.data ?? EMPTY_ANIME_RESULTS;
-  const previewAnime = selectedAnime ?? animeResults[0];
-  const sourceSearchTerm = selectedAnime?.sourceSearchTitle ?? '';
+  const previewAnime =
+    animeResults.find((anime) => anime.id === selectedAnimeId) ?? animeResults[0];
+  const activeAnimeId = selectedAnimeId ?? previewAnime?.id;
 
   const animeDetailsQuery = useQuery({
-    queryKey: ['metadata', 'anilist', 'anime', previewAnime?.id],
-    queryFn: () => getAnimeMetadata(previewAnime?.id ?? 0),
-    enabled: Boolean(previewAnime?.id),
+    queryKey: ['metadata', 'anilist', 'anime', activeAnimeId],
+    queryFn: () => getAnimeMetadata(activeAnimeId ?? 0),
+    enabled: Boolean(activeAnimeId),
     staleTime: 5 * 60_000,
   });
 
   const animeDetails = animeDetailsQuery.data ?? previewAnime;
+  const sourceSearchTerm = selectedAnimeId && animeDetails ? animeDetails.sourceSearchTitle : '';
   const animeRelations =
     animeDetails && hasDetails(animeDetails) ? (animeDetails.relations ?? []) : [];
 
@@ -130,16 +143,19 @@ function App() {
 
   function handleAnimeQueryChange(value: string) {
     setAnimeQuery(value);
-    setSelectedAnime(null);
-    setSelectedMediaUrl(null);
-    setSelectedEpisodeUrl(null);
   }
 
   function handleAnimeSelect(item: AnimeMetadataSearchResult) {
     setAnimeQuery(item.displayTitle);
-    setSelectedAnime(item);
     setSelectedMediaUrl(null);
     setSelectedEpisodeUrl(null);
+    void navigate({
+      params: {
+        animeId: String(item.id),
+        slug: toAnimeSlug(item),
+      },
+      to: '/anime/$animeId/$slug',
+    });
   }
 
   return (
@@ -174,7 +190,7 @@ function App() {
               query={animeQuery}
               results={animeResults}
               loading={animeSearchQuery.isFetching}
-              selectedId={selectedAnime?.id}
+              selectedId={selectedAnimeId}
               onQueryChange={handleAnimeQueryChange}
               onSelect={handleAnimeSelect}
               onImageFocus={setFocusedImage}
@@ -194,7 +210,7 @@ function App() {
         {animeDetails ? (
           <RelatedAnimeSection
             relations={animeRelations}
-            selectedAnimeId={selectedAnime?.id}
+            selectedAnimeId={selectedAnimeId}
             onAnimeSelect={handleAnimeSelect}
             onImageFocus={setFocusedImage}
           />
@@ -856,6 +872,24 @@ function formatDate(date?: { year?: number; month?: number; day?: number }) {
   }
 
   return [date.year, date.month, date.day].filter(Boolean).join('-');
+}
+
+function toAnimeSlug(
+  anime: Pick<AnimeMetadataSearchResult, 'displayTitle' | 'sourceSearchTitle' | 'title'>,
+) {
+  const title = anime.sourceSearchTitle || anime.title.romaji || anime.displayTitle;
+  const slug = title
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return slug || 'anime';
+}
+
+function humanizeAnimeSlug(slug: string) {
+  return decodeURIComponent(slug).replace(/-/g, ' ');
 }
 
 export default App;

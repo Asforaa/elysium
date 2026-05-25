@@ -70,6 +70,10 @@ Frontend:
 - Prefer AniList cover/banner images over source-provider images for primary media artwork.
 - AniList `PREQUEL` and `SEQUEL` relations should render as `Previous` and `Next` anime cards between the metadata panel and source results.
 - Selecting a related AniList anime must flow through the same source-provider search path as autocomplete selection.
+- Use TanStack Router for frontend routes. Anime detail pages live at `/anime/$animeId/$slug`.
+- Treat the AniList numeric ID as the route source of truth. The slug is only for readable URLs and should not be required for lookups.
+- Autocomplete selection and related-anime selection should navigate to the anime route, then let the route-driven page fetch AniList metadata and source-adapter matches.
+- Run `bun run --filter @elysium/web routes:generate` when route files change, and commit the generated `src/routeTree.gen.ts`.
 
 Backend:
 

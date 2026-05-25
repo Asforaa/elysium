@@ -53,6 +53,9 @@ Frontend:
 - Use TanStack Query for API state, server state, retries, caching, and refresh.
 - Use TanStack Table where dense provider/download/queue tables make sense.
 - Keep the UI as a client web app talking to the local API.
+- Anime detail URLs use TanStack Router at `/anime/$animeId/$slug`.
+- The AniList numeric ID is the canonical route parameter; the slug is cosmetic and human-readable.
+- Direct-loading an anime URL should fetch AniList metadata by ID, then search source adapters from that metadata title.
 
 Backend:
 
@@ -87,6 +90,7 @@ bun run web:dev:portless
 bun run api:dev:portless
 bun run lint
 bun run lint:strict
+bun run --filter @elysium/web routes:generate
 bun run db:start
 bun run db:ping
 bun run db:stop

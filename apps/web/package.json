@@ -7,8 +7,9 @@
     "dev": "portless",
     "dev:app": "vite --host 127.0.0.1 --port ${PORT:-5173}",
     "dev:portless": "portless",
-    "build": "tsc -b && vite build",
-    "check": "tsc -b",
+    "routes:generate": "tsr generate",
+    "build": "bun run routes:generate && tsc -b && vite build",
+    "check": "bun run routes:generate && tsc -b",
     "lint": "eslint . || true",
     "lint:strict": "eslint .",
     "preview": "vite preview"
@@ -37,6 +38,8 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.0",
+    "@tanstack/router-cli": "^1.167.10",
+    "@tanstack/router-plugin": "^1.168.11",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

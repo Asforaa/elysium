@@ -5,5 +5,11 @@
   "installCommand": "bun install --frozen-lockfile",
   "buildCommand": "bun run build --filter=@elysium/web",
   "outputDirectory": "apps/web/dist",
-  "devCommand": "bun run web:dev"
+  "devCommand": "bun run web:dev",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
