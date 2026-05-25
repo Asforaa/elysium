@@ -86,7 +86,9 @@ Backend:
 - Resolve host-provider pages through `apps/api/src/download-engine` before handing the result to the local downloader.
 - Do not solve CAPTCHAs, logins, paywalls, or private links. Public first-party client flows that only require the same page JS to finish loading can be mirrored in a resolver when the direct browser flow is verified first.
 - Source providers are code adapters. Host resolvers are shared and should be reused by every source provider that returns the same host links.
-- Download jobs currently live in the backend `download-jobs` module as an in-memory first pass.
+- Download jobs are persisted in PostgreSQL by the backend `download-jobs` module.
+- Use `download_job_attempts` for retries and failure history. Retrying a failed/cancelled job should create a new attempt under the same job, not a random unrelated job.
+- Completed downloads should seed `local_media_files` so the local library can attach files to AniList/source/episode context.
 - Use the local backend downloader for active download execution. It should try concurrent HTTP range downloads when supported, fall back to a normal stream when not, and keep Mega on its custom local `megajs` path.
 - Use `ELYSIUM_DOWNLOAD_DIR` for the local download destination and `ELYSIUM_DOWNLOAD_CONNECTIONS` for segmented HTTP concurrency.
 

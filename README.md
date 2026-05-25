@@ -129,11 +129,19 @@ Runtime knobs:
 - `ELYSIUM_DOWNLOAD_DIR` controls where the backend saves files.
 - `ELYSIUM_DOWNLOAD_CONNECTIONS` controls HTTP range-download concurrency. It defaults to `6` and is clamped between `1` and `16`.
 
-The app currently creates in-memory download jobs through the local API:
+The app creates persisted download jobs through the local API:
 
 - `POST /downloads` starts a job from a structured download option.
 - `GET /downloads` lists tracked jobs for the UI.
 - `GET /downloads/:id` reads a single job.
+- `POST /downloads/:id/retry` creates a new attempt under the same persisted job.
+- `GET /library/files` lists completed local media files seeded from successful downloads.
+
+Download jobs are persisted in PostgreSQL. The backend stores the original
+download option, optional AniList/media context, resolved file metadata,
+attempt count, progress, errors, completion timestamps, and the final local
+file path. Completed downloads seed `local_media_files`, which is the first
+piece of the local library model.
 
 Current supported host buttons in the UI:
 

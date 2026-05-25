@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { DownloadJobsModule } from './download-jobs/download-jobs.module';
 import { HealthModule } from './health/health.module';
+import { LibraryModule } from './library/library.module';
 import { MetadataProvidersModule } from './metadata-providers/metadata-providers.module';
 import { SourceProvidersModule } from './source-providers/source-providers.module';
 
@@ -12,6 +13,7 @@ import { SourceProvidersModule } from './source-providers/source-providers.modul
     AuthModule,
     DownloadJobsModule,
     HealthModule,
+    LibraryModule,
     MetadataProvidersModule,
     SourceProvidersModule,
   ],

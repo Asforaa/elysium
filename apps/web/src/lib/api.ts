@@ -1,9 +1,11 @@
 import type {
   AnimeMetadataDetails,
   AnimeMetadataSearchResult,
+  DownloadMediaContext,
   DownloadJob,
   DownloadOption,
   EpisodeSummary,
+  LocalMediaFile,
   MediaSearchResult,
   SourceProvider,
   SourceProviderId,
@@ -81,8 +83,19 @@ export async function listDownloadJobs(): Promise<DownloadJob[]> {
   return getJson('/downloads');
 }
 
-export async function startDownload(option: DownloadOption): Promise<DownloadJob> {
-  return sendJson('/downloads', { option });
+export async function startDownload(
+  option: DownloadOption,
+  mediaContext?: DownloadMediaContext,
+): Promise<DownloadJob> {
+  return sendJson('/downloads', { mediaContext, option });
+}
+
+export async function retryDownload(id: string): Promise<DownloadJob> {
+  return sendJson(`/downloads/${id}/retry`, {});
+}
+
+export async function listLocalMediaFiles(): Promise<LocalMediaFile[]> {
+  return getJson('/library/files');
 }
 
 async function getJson<T>(path: string): Promise<T> {

@@ -197,6 +197,25 @@ export interface DownloadOption {
   sourcePageUrl: string;
 }
 
+export interface DownloadMediaContext {
+  metadataProvider?: MetadataProviderId;
+  metadataId?: number;
+  displayTitle?: string;
+  sourceSearchTitle?: string;
+  coverImageUrl?: string;
+  bannerImageUrl?: string;
+  sourceProvider?: SourceProviderId;
+  sourceMediaTitle?: string;
+  sourceMediaUrl?: string;
+  episodeTitle?: string;
+  episodeNumber?: string;
+}
+
+export interface CreateDownloadJobRequest {
+  option: DownloadOption;
+  mediaContext?: DownloadMediaContext;
+}
+
 export interface ResolvedDownload {
   provider: HostProviderId;
   sourceUrl: string;
@@ -212,6 +231,7 @@ export interface ResolvedDownload {
 export interface DownloadJob {
   id: string;
   option: DownloadOption;
+  mediaContext?: DownloadMediaContext;
   status: DownloadJobStatus;
   engine?: DownloadJobEngine;
   resolved?: ResolvedDownload;
@@ -221,6 +241,28 @@ export interface DownloadJob {
   totalBytes?: number;
   speedBytesPerSecond?: number;
   errorMessage?: string;
+  attemptCount: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+export interface LocalMediaFile {
+  id: string;
+  downloadJobId: string;
+  metadataProvider?: MetadataProviderId;
+  metadataId?: number;
+  displayTitle?: string;
+  sourceProvider?: SourceProviderId;
+  sourceMediaTitle?: string;
+  sourceMediaUrl?: string;
+  episodeTitle?: string;
+  episodeNumber?: string;
+  quality: DownloadQuality;
+  hostProvider: HostProviderId;
+  filePath: string;
+  filename: string;
+  sizeBytes?: number;
   createdAt: string;
   updatedAt: string;
 }

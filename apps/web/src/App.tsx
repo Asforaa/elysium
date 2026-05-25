@@ -36,9 +36,11 @@ import type {
   AnimeMetadataDetails,
   AnimeMetadataSearchResult,
   AnimeRelation,
+  DownloadMediaContext,
   DownloadJob,
   DownloadOption,
   EpisodeSummary,
+  LocalMediaFile,
   MediaSearchResult,
 } from '@elysium/shared';
 import {
@@ -46,7 +48,9 @@ import {
   getAuthSession,
   getDownloadOptions,
   getEpisodes,
+  listLocalMediaFiles,
   listDownloadJobs,
+  retryDownload,
   searchAnimeMetadata,
   searchMedia,
   startDownload,
@@ -113,9 +117,11 @@ const EMPTY_ANIME_RESULTS: AnimeMetadataSearchResult[] = [];
 const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
 const EMPTY_EPISODES: EpisodeSummary[] = [];
 const EMPTY_DOWNLOAD_JOBS: DownloadJob[] = [];
+const EMPTY_LOCAL_MEDIA_FILES: LocalMediaFile[] = [];
 const PROFILE_PHOTO_SIZE = 256;
 const PROFILE_PHOTO_QUALITY = 0.82;
 const MAX_PROFILE_PHOTO_SOURCE_BYTES = 10 * 1024 * 1024;
+const BRAND_MARK_SRC = '/brand/elysium-logo-mark.png';
 const SEARCH_FILTERS = [
   { label: 'Genres', value: 'Any' },
   { label: 'Year', value: 'Any' },
@@ -147,6 +153,11 @@ type AuthDialogMode = 'login' | 'signup';
 type FocusedImage = {
   alt: string;
   src: string;
+};
+
+type StartDownloadInput = {
+  mediaContext?: DownloadMediaContext;
+  option: DownloadOption;
 };
 
 function App({
@@ -231,7 +242,14 @@ function App({
     queryFn: listDownloadJobs,
     refetchInterval: 1_000,
   });
+  const localMediaFilesQuery = useQuery({
+    queryKey: ['library', 'files'],
+    queryFn: listLocalMediaFiles,
+    refetchInterval: 5_000,
+  });
   const downloadJobs = downloadJobsQuery.data ?? EMPTY_DOWNLOAD_JOBS;
+  const localMediaFiles =
+    localMediaFilesQuery.data ?? EMPTY_LOCAL_MEDIA_FILES;
   const downloadJobByUrl = useMemo(() => {
     const jobs = new Map<string, DownloadJob>();
 
@@ -244,9 +262,18 @@ function App({
     return jobs;
   }, [downloadJobs]);
   const startDownloadMutation = useMutation({
-    mutationFn: startDownload,
+    mutationFn: ({ mediaContext, option }: StartDownloadInput) =>
+      startDownload(option, mediaContext),
     onSuccess: () => {
       void downloadJobsQuery.refetch();
+      void localMediaFilesQuery.refetch();
+    },
+  });
+  const retryDownloadMutation = useMutation({
+    mutationFn: retryDownload,
+    onSuccess: () => {
+      void downloadJobsQuery.refetch();
+      void localMediaFilesQuery.refetch();
     },
   });
 
@@ -266,8 +293,20 @@ function App({
     });
   }
 
-  function handleDownload(option: DownloadOption) {
-    startDownloadMutation.mutate(option);
+  function handleDownload(option: DownloadOption, job?: DownloadJob) {
+    if (job?.status === 'failed' || job?.status === 'cancelled') {
+      retryDownloadMutation.mutate(job.id);
+      return;
+    }
+
+    startDownloadMutation.mutate({
+      mediaContext: createDownloadMediaContext(
+        animeDetails,
+        selectedMedia,
+        selectedEpisode,
+      ),
+      option,
+    });
   }
 
   return (
@@ -376,6 +415,10 @@ function App({
                             const job = downloadJobByUrl.get(option.providerUrl);
                             const support = getDownloadSupport(option);
                             const active = job ? isActiveDownloadStatus(job.status) : false;
+                            const completed = job?.status === 'completed';
+                            const mutating =
+                              startDownloadMutation.isPending ||
+                              retryDownloadMutation.isPending;
 
                             return (
                               <TableRow key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}>
@@ -400,12 +443,13 @@ function App({
                                     disabled={
                                       !support.supported ||
                                       active ||
-                                      startDownloadMutation.isPending
+                                      completed ||
+                                      mutating
                                     }
                                     size="sm"
                                     type="button"
                                     variant={job?.status === 'completed' ? 'outline' : 'default'}
-                                    onClick={() => handleDownload(option)}
+                                    onClick={() => handleDownload(option, job)}
                                   >
                                     <Download />
                                     {getDownloadButtonLabel(job, support.supported)}
@@ -421,12 +465,19 @@ function App({
                     {startDownloadMutation.isError ? (
                       <ErrorText error={startDownloadMutation.error} />
                     ) : null}
+                    {retryDownloadMutation.isError ? (
+                      <ErrorText error={retryDownloadMutation.error} />
+                    ) : null}
                   </CardContent>
                 </Card>
               </>
             ) : null}
 
             <DownloadQueue jobs={downloadJobs} loading={downloadJobsQuery.isFetching} />
+            <LocalLibrary
+              files={localMediaFiles}
+              loading={localMediaFilesQuery.isFetching}
+            />
           </div>
         </div>
         {focusedImage ? (
@@ -620,9 +671,11 @@ function ElysiumSidebar({
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
         <div className="flex h-9 items-center gap-2 rounded-md px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-            E
-          </div>
+          <img
+            alt="Elysium"
+            className="size-8 shrink-0 object-contain"
+            src={BRAND_MARK_SRC}
+          />
           <span className="truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
             Elysium
           </span>
@@ -1513,6 +1566,67 @@ function DownloadQueue({
   );
 }
 
+function LocalLibrary({
+  files,
+  loading,
+}: {
+  files: LocalMediaFile[];
+  loading: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Library</CardTitle>
+        <CardDescription>
+          {loading ? 'Refreshing local files' : 'Downloaded local media files'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {files.length ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Episode</TableHead>
+                <TableHead>Quality</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead>Path</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {files.map((file) => (
+                <TableRow key={file.id}>
+                  <TableCell className="font-medium">
+                    {file.displayTitle ?? file.sourceMediaTitle ?? file.filename}
+                  </TableCell>
+                  <TableCell>
+                    {file.episodeNumber
+                      ? `Episode ${file.episodeNumber}`
+                      : file.episodeTitle ?? 'Unknown'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{file.quality}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {file.sizeBytes ? formatBytes(file.sizeBytes) : 'Unknown'}
+                  </TableCell>
+                  <TableCell className="max-w-[22rem] truncate font-mono text-xs">
+                    {file.filePath}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Completed downloads will appear here.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function DownloadJobRow({ job }: { job: DownloadJob }) {
   const percent = getDownloadProgressPercent(job);
 
@@ -1524,7 +1638,12 @@ function DownloadJobRow({ job }: { job: DownloadJob }) {
             {job.filename ?? job.option.episodeTitle ?? job.option.mediaTitle ?? 'Download'}
           </p>
           <p className="text-xs text-muted-foreground">
-            {[formatHostProvider(job.option.hostProvider), job.option.quality, formatDownloadEngine(job)]
+            {[
+              formatHostProvider(job.option.hostProvider),
+              job.option.quality,
+              formatDownloadEngine(job),
+              job.attemptCount > 1 ? `Attempt ${job.attemptCount}` : undefined,
+            ]
               .filter(Boolean)
               .join(' | ')}
           </p>
@@ -1655,6 +1774,33 @@ function formatDownloadEngine(job: DownloadJob) {
   }
 
   return undefined;
+}
+
+function createDownloadMediaContext(
+  anime: AnimeMetadataDetails | undefined,
+  media: MediaSearchResult | undefined,
+  episode: EpisodeSummary | undefined,
+): DownloadMediaContext | undefined {
+  if (!anime && !media && !episode) {
+    return undefined;
+  }
+
+  return {
+    bannerImageUrl: anime?.bannerImage,
+    coverImageUrl:
+      anime?.coverImage?.extraLarge ??
+      anime?.coverImage?.large ??
+      anime?.coverImage?.medium,
+    displayTitle: anime?.displayTitle ?? media?.title ?? episode?.mediaTitle,
+    episodeNumber: episode?.number,
+    episodeTitle: episode?.title,
+    metadataId: anime?.id,
+    metadataProvider: anime?.metadataProvider,
+    sourceMediaTitle: media?.title ?? episode?.mediaTitle,
+    sourceMediaUrl: media?.url,
+    sourceProvider: media?.sourceProvider ?? episode?.sourceProvider,
+    sourceSearchTitle: anime?.sourceSearchTitle,
+  };
 }
 
 function formatHostProvider(provider: string) {

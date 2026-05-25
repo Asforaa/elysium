@@ -6,12 +6,8 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
-import type { DownloadOption } from '@elysium/shared';
+import type { CreateDownloadJobRequest } from '@elysium/shared';
 import { DownloadJobsService } from './download-jobs.service';
-
-interface CreateDownloadJobBody {
-  option?: DownloadOption;
-}
 
 @Controller('downloads')
 export class DownloadJobsController {
@@ -28,11 +24,19 @@ export class DownloadJobsController {
   }
 
   @Post()
-  createJob(@Body() body: CreateDownloadJobBody) {
+  createJob(@Body() body: Partial<CreateDownloadJobRequest>) {
     if (!body.option?.providerUrl || !body.option.hostProvider) {
       throw new BadRequestException('Missing download option');
     }
 
-    return this.downloadJobs.createJob(body.option);
+    return this.downloadJobs.createJob({
+      mediaContext: body.mediaContext,
+      option: body.option,
+    });
+  }
+
+  @Post(':id/retry')
+  retryJob(@Param('id') id: string) {
+    return this.downloadJobs.retryJob(id);
   }
 }
