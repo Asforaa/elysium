@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import type {
   AnimeMetadataDetails,
@@ -17,6 +17,7 @@ import {
   searchAnimeMetadata,
   searchMedia,
 } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,11 +44,17 @@ const EMPTY_ANIME_RESULTS: AnimeMetadataSearchResult[] = [];
 const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
 const EMPTY_EPISODES: EpisodeSummary[] = [];
 
+type FocusedImage = {
+  alt: string;
+  src: string;
+};
+
 function App() {
   const [animeQuery, setAnimeQuery] = useState('Akane-banashi');
   const [selectedAnime, setSelectedAnime] = useState<AnimeMetadataSearchResult | null>(null);
   const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null);
   const [selectedEpisodeUrl, setSelectedEpisodeUrl] = useState<string | null>(null);
+  const [focusedImage, setFocusedImage] = useState<FocusedImage | null>(null);
 
   const providersQuery = useQuery({
     queryKey: ['providers'],
@@ -155,13 +162,18 @@ function App() {
               selectedId={selectedAnime?.id}
               onQueryChange={handleAnimeQueryChange}
               onSelect={handleAnimeSelect}
+              onImageFocus={setFocusedImage}
             />
             {animeSearchQuery.isError ? <ErrorText error={animeSearchQuery.error} /> : null}
           </CardContent>
         </Card>
 
         {animeDetails ? (
-          <AnimeDetailPanel anime={animeDetails} loading={animeDetailsQuery.isFetching} />
+          <AnimeDetailPanel
+            anime={animeDetails}
+            loading={animeDetailsQuery.isFetching}
+            onImageFocus={setFocusedImage}
+          />
         ) : null}
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -181,6 +193,7 @@ function App() {
                     item={item}
                     key={item.url}
                     selected={selectedMedia?.url === item.url}
+                    onImageFocus={setFocusedImage}
                     onSelect={() => {
                       setSelectedMediaUrl(item.url);
                       setSelectedEpisodeUrl(null);
@@ -257,6 +270,9 @@ function App() {
           </CardContent>
         </Card>
       </div>
+      {focusedImage ? (
+        <ImageLightbox image={focusedImage} onClose={() => setFocusedImage(null)} />
+      ) : null}
     </main>
   );
 }
@@ -288,6 +304,7 @@ function AnimeAutocomplete({
   selectedId,
   onQueryChange,
   onSelect,
+  onImageFocus,
 }: {
   query: string;
   results: AnimeMetadataSearchResult[];
@@ -295,6 +312,7 @@ function AnimeAutocomplete({
   selectedId?: number;
   onQueryChange: (value: string) => void;
   onSelect: (item: AnimeMetadataSearchResult) => void;
+  onImageFocus: (image: FocusedImage) => void;
 }) {
   return (
     <div className="space-y-2">
@@ -312,31 +330,36 @@ function AnimeAutocomplete({
           </div>
         ) : (
           results.map((item) => (
-            <button
+            <div
               className="flex w-full items-center gap-3 border-b p-3 text-left last:border-b-0 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               key={item.id}
-              type="button"
-              onClick={() => onSelect(item)}
             >
               {item.coverImage?.medium ? (
-                <img
-                  alt=""
-                  className="h-14 w-10 rounded-md border object-cover"
+                <FocusableImage
+                  alt={`${item.displayTitle} cover`}
+                  buttonClassName="h-14 w-10"
+                  imageClassName="h-14 w-10 rounded-md border object-cover"
                   src={item.coverImage.medium}
-                  onError={hideBrokenImage}
+                  onFocusImage={onImageFocus}
                 />
               ) : null}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{item.displayTitle}</span>
-                <span className="block truncate text-sm text-muted-foreground">
-                  {[item.title.english, item.title.native].filter(Boolean).join(' / ')}
+              <button
+                className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                type="button"
+                onClick={() => onSelect(item)}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{item.displayTitle}</span>
+                  <span className="block truncate text-sm text-muted-foreground">
+                    {[item.title.english, item.title.native].filter(Boolean).join(' / ')}
+                  </span>
                 </span>
-              </span>
-              <span className="flex shrink-0 flex-wrap justify-end gap-1">
-                {item.seasonYear ? <Badge variant="outline">{item.seasonYear}</Badge> : null}
-                {selectedId === item.id ? <Badge>Selected</Badge> : null}
-              </span>
-            </button>
+                <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                  {item.seasonYear ? <Badge variant="outline">{item.seasonYear}</Badge> : null}
+                  {selectedId === item.id ? <Badge>Selected</Badge> : null}
+                </span>
+              </button>
+            </div>
           ))
         )}
         {!loading && query.trim().length >= 2 && results.length === 0 ? (
@@ -350,33 +373,37 @@ function AnimeAutocomplete({
 function AnimeDetailPanel({
   anime,
   loading,
+  onImageFocus,
 }: {
   anime: AnimeMetadataSearchResult | AnimeMetadataDetails;
   loading: boolean;
+  onImageFocus: (image: FocusedImage) => void;
 }) {
   const details = hasDetails(anime) ? anime : undefined;
   const coverUrl = anime.coverImage?.extraLarge ?? anime.coverImage?.large ?? anime.coverImage?.medium;
 
   return (
-    <section className="overflow-hidden rounded-xl border bg-card text-card-foreground">
-      <div className="h-44 bg-muted md:h-56">
+    <section className="relative overflow-hidden rounded-xl border bg-card text-card-foreground">
+      <div className="relative z-0 h-44 bg-muted md:h-56">
         {anime.bannerImage ? (
-          <img
-            alt=""
-            className="h-full w-full object-cover opacity-80"
+          <FocusableImage
+            alt={`${anime.displayTitle} banner`}
+            buttonClassName="absolute inset-0 h-full w-full"
+            imageClassName="h-full w-full object-cover opacity-80"
             src={anime.bannerImage}
-            onError={hideBrokenImage}
+            onFocusImage={onImageFocus}
           />
         ) : null}
       </div>
-      <div className="grid gap-4 p-4 md:grid-cols-[12rem_minmax(0,1fr)] md:p-6">
-        <div className="md:-mt-24">
+      <div className="relative z-10 grid gap-4 p-4 md:grid-cols-[12rem_minmax(0,1fr)] md:p-6">
+        <div className="relative z-20 md:-mt-24">
           {coverUrl ? (
-            <img
-              alt=""
-              className="aspect-[2/3] w-36 rounded-lg border bg-muted object-cover shadow-sm md:w-48"
+            <FocusableImage
+              alt={`${anime.displayTitle} cover`}
+              buttonClassName="block w-36 rounded-lg border bg-muted shadow-sm md:w-48"
+              imageClassName="aspect-[2/3] w-full object-cover"
               src={coverUrl}
-              onError={hideBrokenImage}
+              onFocusImage={onImageFocus}
             />
           ) : (
             <div className="aspect-[2/3] w-36 rounded-lg border bg-muted md:w-48" />
@@ -419,14 +446,20 @@ function AnimeDetailPanel({
             </div>
           ) : null}
 
-          {details ? <AnimeDetailExtras details={details} /> : null}
+          {details ? <AnimeDetailExtras details={details} onImageFocus={onImageFocus} /> : null}
         </div>
       </div>
     </section>
   );
 }
 
-function AnimeDetailExtras({ details }: { details: AnimeMetadataDetails }) {
+function AnimeDetailExtras({
+  details,
+  onImageFocus,
+}: {
+  details: AnimeMetadataDetails;
+  onImageFocus: (image: FocusedImage) => void;
+}) {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -453,11 +486,12 @@ function AnimeDetailExtras({ details }: { details: AnimeMetadataDetails }) {
             {details.characters.slice(0, 6).map((character) => (
               <div className="flex min-w-0 items-center gap-3 rounded-lg border p-2" key={character.id}>
                 {character.imageUrl ? (
-                  <img
-                    alt=""
-                    className="h-14 w-10 rounded-md border object-cover"
+                  <FocusableImage
+                    alt={character.name}
+                    buttonClassName="h-14 w-10"
+                    imageClassName="h-14 w-10 rounded-md border object-cover"
                     src={character.imageUrl}
-                    onError={hideBrokenImage}
+                    onFocusImage={onImageFocus}
                   />
                 ) : null}
                 <div className="min-w-0">
@@ -493,28 +527,31 @@ function InfoItem({ label, value }: { label: string; value?: string }) {
 function MediaResult({
   item,
   selected,
+  onImageFocus,
   onSelect,
 }: {
   item: MediaSearchResult;
   selected: boolean;
+  onImageFocus: (image: FocusedImage) => void;
   onSelect: () => void;
 }) {
   return (
-    <button
-      className="w-full rounded-lg border p-3 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      type="button"
-      onClick={onSelect}
-    >
+    <div className="w-full rounded-lg border p-3 text-left hover:bg-accent">
       <div className="flex items-start gap-3">
         {item.posterUrl ? (
-          <img
-            alt=""
-            className="h-20 w-14 rounded-md border object-cover"
+          <FocusableImage
+            alt={`${item.title} poster`}
+            buttonClassName="h-20 w-14"
+            imageClassName="h-20 w-14 rounded-md border object-cover"
             src={item.posterUrl}
-            onError={hideBrokenImage}
+            onFocusImage={onImageFocus}
           />
         ) : null}
-        <div className="min-w-0 flex-1">
+        <button
+          className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          type="button"
+          onClick={onSelect}
+        >
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-medium">{item.title}</h2>
             {selected ? <Badge>Selected</Badge> : null}
@@ -523,9 +560,89 @@ function MediaResult({
           {item.description ? (
             <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.description}</p>
           ) : null}
-        </div>
+        </button>
       </div>
+    </div>
+  );
+}
+
+function FocusableImage({
+  alt,
+  buttonClassName,
+  imageClassName,
+  onFocusImage,
+  src,
+}: {
+  alt: string;
+  buttonClassName?: string;
+  imageClassName?: string;
+  onFocusImage: (image: FocusedImage) => void;
+  src: string;
+}) {
+  return (
+    <button
+      className={cn(
+        'overflow-hidden rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        buttonClassName,
+      )}
+      type="button"
+      onClick={() => onFocusImage({ alt, src })}
+    >
+      <img
+        alt={alt}
+        className={cn('h-full w-full object-cover', imageClassName)}
+        src={src}
+        onError={hideBrokenImage}
+      />
     </button>
+  );
+}
+
+function ImageLightbox({
+  image,
+  onClose,
+}: {
+  image: FocusedImage;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      aria-label="Focused image preview"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-4 backdrop-blur-sm"
+      role="dialog"
+      onClick={onClose}
+    >
+      <Button
+        aria-label="Close image preview"
+        className="absolute right-4 top-4 z-10 bg-background/90"
+        size="icon"
+        type="button"
+        variant="outline"
+        onClick={onClose}
+      >
+        <X />
+      </Button>
+      <div className="max-h-full max-w-full" onClick={(event) => event.stopPropagation()}>
+        <img
+          alt={image.alt}
+          className="max-h-[85svh] max-w-[92vw] rounded-lg border bg-muted object-contain shadow-2xl"
+          src={image.src}
+        />
+      </div>
+    </div>
   );
 }
 
