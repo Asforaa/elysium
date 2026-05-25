@@ -24,6 +24,8 @@ export type DownloadJobStatus =
   | "failed"
   | "cancelled";
 
+export type DownloadJobEngine = "gopeed" | "local-fetch";
+
 export interface SourceProvider {
   id: SourceProviderId;
   name: string;
@@ -210,6 +212,9 @@ export interface DownloadJob {
   id: string;
   option: DownloadOption;
   status: DownloadJobStatus;
+  engine?: DownloadJobEngine;
+  externalTaskId?: string;
+  resolved?: ResolvedDownload;
   destinationPath?: string;
   filename?: string;
   progressBytes: number;

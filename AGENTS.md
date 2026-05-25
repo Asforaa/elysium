@@ -86,6 +86,10 @@ Backend:
 - Resolve host-provider pages through `apps/api/src/download-engine` before handing a direct file URL to any download worker.
 - Do not solve or bypass host-provider automated security checks; return an unsupported/failed resolver state instead.
 - Source providers are code adapters. Host resolvers are shared and should be reused by every source provider that returns the same host links.
+- Download jobs currently live in the backend `download-jobs` module as an in-memory first pass.
+- Prefer Gopeed when reachable, then fall back to the local stream downloader so the app can still perform real downloads during development.
+- Gopeed API auth uses `X-Api-Token`; configure it with `GOPEED_API_TOKEN` and `GOPEED_BASE_URL`.
+- Use `ELYSIUM_DOWNLOAD_DIR` for the local download destination and `ELYSIUM_DOWNLOAD_ENGINE=local` to force the built-in downloader during smoke tests.
 
 Monorepo:
 

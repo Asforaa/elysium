@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { SyntheticEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { Moon, Sun, X } from 'lucide-react';
+import { Download, Moon, Sun, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import type {
   AnimeMetadataDetails,
   AnimeMetadataSearchResult,
   AnimeRelation,
+  DownloadJob,
+  DownloadOption,
   EpisodeSummary,
   MediaSearchResult,
 } from '@elysium/shared';
@@ -15,8 +17,10 @@ import {
   getAnimeMetadata,
   getDownloadOptions,
   getEpisodes,
+  listDownloadJobs,
   searchAnimeMetadata,
   searchMedia,
+  startDownload,
 } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +47,7 @@ import {
 const EMPTY_ANIME_RESULTS: AnimeMetadataSearchResult[] = [];
 const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
 const EMPTY_EPISODES: EpisodeSummary[] = [];
+const EMPTY_DOWNLOAD_JOBS: DownloadJob[] = [];
 const DEFAULT_ANIME_QUERY = 'Akane-banashi';
 
 type FocusedImage = {
@@ -130,6 +135,29 @@ function App({
 
   const downloadOptions = downloadOptionsQuery.data ?? [];
   const episodesLoading = searchQuery.isLoading || episodesQuery.isLoading;
+  const downloadJobsQuery = useQuery({
+    queryKey: ['downloads'],
+    queryFn: listDownloadJobs,
+    refetchInterval: 1_000,
+  });
+  const downloadJobs = downloadJobsQuery.data ?? EMPTY_DOWNLOAD_JOBS;
+  const downloadJobByUrl = useMemo(() => {
+    const jobs = new Map<string, DownloadJob>();
+
+    for (const job of downloadJobs) {
+      if (!jobs.has(job.option.providerUrl)) {
+        jobs.set(job.option.providerUrl, job);
+      }
+    }
+
+    return jobs;
+  }, [downloadJobs]);
+  const startDownloadMutation = useMutation({
+    mutationFn: startDownload,
+    onSuccess: () => {
+      void downloadJobsQuery.refetch();
+    },
+  });
 
   function handleAnimeQueryChange(value: string) {
     setAnimeQuery(value);
@@ -145,6 +173,10 @@ function App({
       },
       to: '/anime/$animeId/$slug',
     });
+  }
+
+  function handleDownload(option: DownloadOption) {
+    startDownloadMutation.mutate(option);
   }
 
   return (
@@ -228,7 +260,7 @@ function App({
                 : 'Select an episode'}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {downloadOptionsQuery.isLoading ? (
               <ResultSkeleton />
             ) : (
@@ -237,27 +269,65 @@ function App({
                   <TableRow>
                     <TableHead>Quality</TableHead>
                     <TableHead>Provider</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Source URL</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {downloadOptions.map((option) => (
-                    <TableRow key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}>
-                      <TableCell>
-                        <Badge variant="outline">{option.quality}</Badge>
-                      </TableCell>
-                      <TableCell>{option.hostProvider}</TableCell>
-                      <TableCell className="max-w-[20rem] truncate font-mono text-xs">
-                        {option.providerUrl}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {downloadOptions.map((option) => {
+                    const job = downloadJobByUrl.get(option.providerUrl);
+                    const support = getDownloadSupport(option);
+                    const active = job ? isActiveDownloadStatus(job.status) : false;
+
+                    return (
+                      <TableRow key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}>
+                        <TableCell>
+                          <Badge variant="outline">{option.quality}</Badge>
+                        </TableCell>
+                        <TableCell>{formatHostProvider(option.hostProvider)}</TableCell>
+                        <TableCell>
+                          {job ? (
+                            <JobStatusBadge job={job} />
+                          ) : (
+                            <Badge variant={support.supported ? 'secondary' : 'outline'}>
+                              {support.label}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-[18rem] truncate font-mono text-xs">
+                          {option.providerUrl}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            disabled={
+                              !support.supported ||
+                              active ||
+                              startDownloadMutation.isPending
+                            }
+                            size="sm"
+                            type="button"
+                            variant={job?.status === 'completed' ? 'outline' : 'default'}
+                            onClick={() => handleDownload(option)}
+                          >
+                            <Download />
+                            {getDownloadButtonLabel(job, support.supported)}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
             {downloadOptionsQuery.isError ? <ErrorText error={downloadOptionsQuery.error} /> : null}
+            {startDownloadMutation.isError ? (
+              <ErrorText error={startDownloadMutation.error} />
+            ) : null}
           </CardContent>
         </Card>
+
+        <DownloadQueue jobs={downloadJobs} loading={downloadJobsQuery.isFetching} />
       </div>
       {focusedImage ? (
         <ImageLightbox image={focusedImage} onClose={() => setFocusedImage(null)} />
@@ -718,6 +788,83 @@ function EpisodeButton({
   );
 }
 
+function DownloadQueue({
+  jobs,
+  loading,
+}: {
+  jobs: DownloadJob[];
+  loading: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Downloads</CardTitle>
+        <CardDescription>
+          {loading ? 'Refreshing download status' : 'Tracked local download jobs'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {jobs.length ? (
+          jobs.map((job) => <DownloadJobRow job={job} key={job.id} />)
+        ) : (
+          <p className="text-sm text-muted-foreground">No downloads started yet.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DownloadJobRow({ job }: { job: DownloadJob }) {
+  const percent = getDownloadProgressPercent(job);
+
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <p className="truncate text-sm font-medium">
+            {job.filename ?? job.option.episodeTitle ?? job.option.mediaTitle ?? 'Download'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {[formatHostProvider(job.option.hostProvider), job.option.quality, formatDownloadEngine(job)]
+              .filter(Boolean)
+              .join(' | ')}
+          </p>
+        </div>
+        <JobStatusBadge job={job} />
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full bg-primary"
+          style={{ width: `${percent ?? 0}%` }}
+        />
+      </div>
+      <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+        <span>
+          {formatBytes(job.progressBytes)}
+          {job.totalBytes ? ` / ${formatBytes(job.totalBytes)}` : ''}
+        </span>
+        <span>{job.speedBytesPerSecond ? `${formatBytes(job.speedBytesPerSecond)}/s` : ''}</span>
+      </div>
+      {job.errorMessage ? (
+        <p className="text-xs text-muted-foreground">{job.errorMessage}</p>
+      ) : null}
+      {job.destinationPath && job.status === 'completed' ? (
+        <p className="truncate font-mono text-xs text-muted-foreground">
+          {job.destinationPath}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function JobStatusBadge({ job }: { job: DownloadJob }) {
+  return (
+    <Badge variant={job.status === 'failed' ? 'destructive' : 'secondary'}>
+      {formatToken(job.status)}
+    </Badge>
+  );
+}
+
 function ResultSkeleton({ compact = false }: { compact?: boolean }) {
   return (
     <div className="space-y-3">
@@ -735,6 +882,119 @@ function ErrorText({ error }: { error: Error }) {
       <p className="text-sm text-destructive">{error.message}</p>
     </>
   );
+}
+
+function getDownloadSupport(option: DownloadOption) {
+  const provider = option.hostProvider.toLowerCase().trim();
+
+  if (provider === 'mediafire' || provider === 'google drive' || provider === 'google-drive') {
+    return {
+      supported: true,
+      label: 'Supported',
+    };
+  }
+
+  if (provider === 'mp4upload') {
+    return {
+      supported: false,
+      label: 'Resolver failing',
+    };
+  }
+
+  if (provider === 'mega') {
+    return {
+      supported: false,
+      label: 'Needs Mega engine',
+    };
+  }
+
+  if (provider === 'gofile' || provider === 'workupload') {
+    return {
+      supported: false,
+      label: 'Unsupported',
+    };
+  }
+
+  return {
+    supported: false,
+    label: 'Needs resolver',
+  };
+}
+
+function isActiveDownloadStatus(status: DownloadJob['status']) {
+  return ['queued', 'resolving', 'downloading', 'paused'].includes(status);
+}
+
+function getDownloadButtonLabel(job: DownloadJob | undefined, supported: boolean) {
+  if (!supported) {
+    return 'Unavailable';
+  }
+
+  if (!job) {
+    return 'Download';
+  }
+
+  if (job.status === 'completed') {
+    return 'Done';
+  }
+
+  if (job.status === 'failed' || job.status === 'cancelled') {
+    return 'Retry';
+  }
+
+  return 'Running';
+}
+
+function getDownloadProgressPercent(job: DownloadJob) {
+  if (!job.totalBytes) {
+    return job.status === 'completed' ? 100 : 0;
+  }
+
+  return Math.max(0, Math.min(100, (job.progressBytes / job.totalBytes) * 100));
+}
+
+function formatDownloadEngine(job: DownloadJob) {
+  if (job.engine === 'gopeed') {
+    return 'Gopeed';
+  }
+
+  if (job.engine === 'local-fetch') {
+    return 'Local fallback';
+  }
+
+  return undefined;
+}
+
+function formatHostProvider(provider: string) {
+  switch (provider.toLowerCase().trim()) {
+    case 'mediafire':
+      return 'MediaFire';
+    case 'google drive':
+    case 'google-drive':
+      return 'Google Drive';
+    case 'mp4upload':
+      return 'mp4upload';
+    case 'gofile':
+      return 'Gofile';
+    case 'mega':
+      return 'Mega';
+    case 'workupload':
+      return 'Workupload';
+    default:
+      return formatToken(provider);
+  }
+}
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / 1024 ** exponent;
+
+  return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
 }
 
 function hasDetails(

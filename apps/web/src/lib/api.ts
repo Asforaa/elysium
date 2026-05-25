@@ -1,6 +1,7 @@
 import type {
   AnimeMetadataDetails,
   AnimeMetadataSearchResult,
+  DownloadJob,
   DownloadOption,
   EpisodeSummary,
   MediaSearchResult,
@@ -40,8 +41,32 @@ export async function getDownloadOptions(
   return getJson(`/providers/${providerId}/download-options?url=${encodeURIComponent(episodeUrl)}`);
 }
 
+export async function listDownloadJobs(): Promise<DownloadJob[]> {
+  return getJson('/downloads');
+}
+
+export async function startDownload(option: DownloadOption): Promise<DownloadJob> {
+  return sendJson('/downloads', { option });
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
+
+  if (!response.ok) {
+    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function sendJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    body: JSON.stringify(body),
+    headers: {
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  });
 
   if (!response.ok) {
     throw new Error(`API request failed: ${response.status} ${response.statusText}`);

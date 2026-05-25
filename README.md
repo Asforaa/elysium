@@ -124,6 +124,31 @@ The current shape is:
 Source adapter -> Host resolver -> Resolved direct file URL -> Gopeed/local worker -> Local file
 ```
 
+Runtime knobs:
+
+- `GOPEED_BASE_URL` defaults to `http://127.0.0.1:9999`.
+- `GOPEED_API_TOKEN` is sent as Gopeed's `X-Api-Token` header when set.
+- `ELYSIUM_DOWNLOAD_DIR` controls where the backend saves files.
+- `ELYSIUM_DOWNLOAD_ENGINE=local` forces the built-in stream downloader instead of trying Gopeed first.
+
+The app currently creates in-memory download jobs through the local API:
+
+- `POST /downloads` starts a job from a structured download option.
+- `GET /downloads` lists tracked jobs for the UI.
+- `GET /downloads/:id` reads a single job.
+
+Current supported host buttons in the UI:
+
+- MediaFire
+- Google Drive
+
+Known unsupported or unfinished hosts:
+
+- Mega needs a Mega-aware engine.
+- GoFile currently needs API/auth handling for reliable direct links.
+- Workupload is returning an automated security check, which Elysium should not solve or bypass.
+- mp4upload currently returns HTML instead of a direct file connection in the resolver smoke tests.
+
 The first smoke test for this layer is:
 
 ```bash
