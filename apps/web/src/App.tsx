@@ -178,6 +178,7 @@ function App({
   const [animeQuery, setAnimeQuery] = useState(routeAnimeSearchQuery);
   const [animeSearchSort, setAnimeSearchSort] =
     useState<AnimeMetadataSearchSort>(routeAnimeSearchSort);
+  const [animeSearchFocusTick, setAnimeSearchFocusTick] = useState(0);
   const [selectedEpisodeUrl, setSelectedEpisodeUrl] = useState<string | null>(null);
   const [focusedImage, setFocusedImage] = useState<FocusedImage | null>(null);
   const selectedAnimeId = Number.isFinite(routeAnimeId) ? routeAnimeId : undefined;
@@ -296,6 +297,7 @@ function App({
   });
 
   function handleAnimeQueryChange(value: string) {
+    setAnimeSearchFocusTick((tick) => tick + 1);
     setAnimeQuery(value);
     navigateToAnimeSearch(value, animeSearchSort);
   }
@@ -316,9 +318,14 @@ function App({
     const nextQuery = query.trim();
 
     if (!nextQuery) {
-      if (animeSearchRoute) {
-        void navigate({ replace: true, to: '/' });
-      }
+      void navigate({
+        replace: true,
+        search: {
+          search: '',
+          sort: toAnimeSearchSortUrlValue(sort),
+        },
+        to: '/search/anime',
+      });
 
       return;
     }
@@ -364,7 +371,9 @@ function App({
   return (
     <SidebarProvider>
       <ElysiumSidebar
-        activeItem={selectedAnimeId || showingAnimeSearch ? 'Anime' : 'Home'}
+        activeItem={
+          selectedAnimeId || showingAnimeSearch || animeSearchRoute ? 'Anime' : 'Home'
+        }
         onHomeSelect={() => {
           void navigate({ to: '/home' });
         }}
@@ -376,6 +385,7 @@ function App({
               <div className="flex min-w-0 items-center gap-2 md:col-start-2">
                 <SidebarTrigger className="-ml-2 md:hidden" />
                 <AnimeSearchBar
+                  focusTick={animeSearchFocusTick}
                   query={animeQuery}
                   onQueryChange={handleAnimeQueryChange}
                 />
@@ -544,16 +554,18 @@ function App({
 }
 
 function AnimeSearchBar({
+  focusTick,
   query,
   onQueryChange,
 }: {
+  focusTick: number;
   query: string;
   onQueryChange: (value: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!query) {
+    if (!query && !focusTick) {
       return;
     }
 
@@ -565,7 +577,7 @@ function AnimeSearchBar({
 
     input.focus({ preventScroll: true });
     input.setSelectionRange(input.value.length, input.value.length);
-  }, [query]);
+  }, [focusTick, query]);
 
   return (
     <div className="relative w-full max-w-xl">
@@ -838,7 +850,7 @@ function SidebarNavSection({
                   type="button"
                   onClick={item.title === 'Home' ? onHomeSelect : undefined}
                 >
-                  <Icon />
+                  <Icon fill={active ? 'currentColor' : 'none'} />
                   <span>{item.title}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
