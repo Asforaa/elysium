@@ -9,21 +9,63 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WatchLaterRouteImport } from './routes/watch-later'
+import { Route as TvShowsRouteImport } from './routes/tv-shows'
+import { Route as MyListRouteImport } from './routes/my-list'
+import { Route as MoviesRouteImport } from './routes/movies'
 import { Route as HomeRouteImport } from './routes/home'
+import { Route as FavouritesRouteImport } from './routes/favourites'
 import { Route as DownloadsRouteImport } from './routes/downloads'
+import { Route as AnimeRouteImport } from './routes/anime'
+import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SearchAnimeRouteImport } from './routes/search.anime'
 import { Route as AnimeAnimeIdSlugRouteImport } from './routes/anime.$animeId.$slug'
 import { Route as AnimeAnimeIdSlugEpisodeEpisodeNumberRouteImport } from './routes/anime.$animeId.$slug.episode.$episodeNumber'
 
+const WatchLaterRoute = WatchLaterRouteImport.update({
+  id: '/watch-later',
+  path: '/watch-later',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TvShowsRoute = TvShowsRouteImport.update({
+  id: '/tv-shows',
+  path: '/tv-shows',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyListRoute = MyListRouteImport.update({
+  id: '/my-list',
+  path: '/my-list',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MoviesRoute = MoviesRouteImport.update({
+  id: '/movies',
+  path: '/movies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HomeRoute = HomeRouteImport.update({
   id: '/home',
   path: '/home',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FavouritesRoute = FavouritesRouteImport.update({
+  id: '/favourites',
+  path: '/favourites',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DownloadsRoute = DownloadsRouteImport.update({
   id: '/downloads',
   path: '/downloads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnimeRoute = AnimeRouteImport.update({
+  id: '/anime',
+  path: '/anime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -37,9 +79,9 @@ const SearchAnimeRoute = SearchAnimeRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnimeAnimeIdSlugRoute = AnimeAnimeIdSlugRouteImport.update({
-  id: '/anime/$animeId/$slug',
-  path: '/anime/$animeId/$slug',
-  getParentRoute: () => rootRouteImport,
+  id: '/$animeId/$slug',
+  path: '/$animeId/$slug',
+  getParentRoute: () => AnimeRoute,
 } as any)
 const AnimeAnimeIdSlugEpisodeEpisodeNumberRoute =
   AnimeAnimeIdSlugEpisodeEpisodeNumberRouteImport.update({
@@ -50,16 +92,30 @@ const AnimeAnimeIdSlugEpisodeEpisodeNumberRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
+  '/anime': typeof AnimeRouteWithChildren
   '/downloads': typeof DownloadsRoute
+  '/favourites': typeof FavouritesRoute
   '/home': typeof HomeRoute
+  '/movies': typeof MoviesRoute
+  '/my-list': typeof MyListRoute
+  '/tv-shows': typeof TvShowsRoute
+  '/watch-later': typeof WatchLaterRoute
   '/search/anime': typeof SearchAnimeRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRouteWithChildren
   '/anime/$animeId/$slug/episode/$episodeNumber': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
+  '/anime': typeof AnimeRouteWithChildren
   '/downloads': typeof DownloadsRoute
+  '/favourites': typeof FavouritesRoute
   '/home': typeof HomeRoute
+  '/movies': typeof MoviesRoute
+  '/my-list': typeof MyListRoute
+  '/tv-shows': typeof TvShowsRoute
+  '/watch-later': typeof WatchLaterRoute
   '/search/anime': typeof SearchAnimeRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRouteWithChildren
   '/anime/$animeId/$slug/episode/$episodeNumber': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRoute
@@ -67,8 +123,15 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
+  '/anime': typeof AnimeRouteWithChildren
   '/downloads': typeof DownloadsRoute
+  '/favourites': typeof FavouritesRoute
   '/home': typeof HomeRoute
+  '/movies': typeof MoviesRoute
+  '/my-list': typeof MyListRoute
+  '/tv-shows': typeof TvShowsRoute
+  '/watch-later': typeof WatchLaterRoute
   '/search/anime': typeof SearchAnimeRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRouteWithChildren
   '/anime/$animeId/$slug/episode/$episodeNumber': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRoute
@@ -77,24 +140,45 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/account'
+    | '/anime'
     | '/downloads'
+    | '/favourites'
     | '/home'
+    | '/movies'
+    | '/my-list'
+    | '/tv-shows'
+    | '/watch-later'
     | '/search/anime'
     | '/anime/$animeId/$slug'
     | '/anime/$animeId/$slug/episode/$episodeNumber'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/account'
+    | '/anime'
     | '/downloads'
+    | '/favourites'
     | '/home'
+    | '/movies'
+    | '/my-list'
+    | '/tv-shows'
+    | '/watch-later'
     | '/search/anime'
     | '/anime/$animeId/$slug'
     | '/anime/$animeId/$slug/episode/$episodeNumber'
   id:
     | '__root__'
     | '/'
+    | '/account'
+    | '/anime'
     | '/downloads'
+    | '/favourites'
     | '/home'
+    | '/movies'
+    | '/my-list'
+    | '/tv-shows'
+    | '/watch-later'
     | '/search/anime'
     | '/anime/$animeId/$slug'
     | '/anime/$animeId/$slug/episode/$episodeNumber'
@@ -102,14 +186,48 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRoute: typeof AccountRoute
+  AnimeRoute: typeof AnimeRouteWithChildren
   DownloadsRoute: typeof DownloadsRoute
+  FavouritesRoute: typeof FavouritesRoute
   HomeRoute: typeof HomeRoute
+  MoviesRoute: typeof MoviesRoute
+  MyListRoute: typeof MyListRoute
+  TvShowsRoute: typeof TvShowsRoute
+  WatchLaterRoute: typeof WatchLaterRoute
   SearchAnimeRoute: typeof SearchAnimeRoute
-  AnimeAnimeIdSlugRoute: typeof AnimeAnimeIdSlugRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/watch-later': {
+      id: '/watch-later'
+      path: '/watch-later'
+      fullPath: '/watch-later'
+      preLoaderRoute: typeof WatchLaterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tv-shows': {
+      id: '/tv-shows'
+      path: '/tv-shows'
+      fullPath: '/tv-shows'
+      preLoaderRoute: typeof TvShowsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-list': {
+      id: '/my-list'
+      path: '/my-list'
+      fullPath: '/my-list'
+      preLoaderRoute: typeof MyListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/movies': {
+      id: '/movies'
+      path: '/movies'
+      fullPath: '/movies'
+      preLoaderRoute: typeof MoviesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/home': {
       id: '/home'
       path: '/home'
@@ -117,11 +235,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/favourites': {
+      id: '/favourites'
+      path: '/favourites'
+      fullPath: '/favourites'
+      preLoaderRoute: typeof FavouritesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/downloads': {
       id: '/downloads'
       path: '/downloads'
       fullPath: '/downloads'
       preLoaderRoute: typeof DownloadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/anime': {
+      id: '/anime'
+      path: '/anime'
+      fullPath: '/anime'
+      preLoaderRoute: typeof AnimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -140,10 +279,10 @@ declare module '@tanstack/react-router' {
     }
     '/anime/$animeId/$slug': {
       id: '/anime/$animeId/$slug'
-      path: '/anime/$animeId/$slug'
+      path: '/$animeId/$slug'
       fullPath: '/anime/$animeId/$slug'
       preLoaderRoute: typeof AnimeAnimeIdSlugRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AnimeRoute
     }
     '/anime/$animeId/$slug/episode/$episodeNumber': {
       id: '/anime/$animeId/$slug/episode/$episodeNumber'
@@ -167,12 +306,28 @@ const AnimeAnimeIdSlugRouteChildren: AnimeAnimeIdSlugRouteChildren = {
 const AnimeAnimeIdSlugRouteWithChildren =
   AnimeAnimeIdSlugRoute._addFileChildren(AnimeAnimeIdSlugRouteChildren)
 
+interface AnimeRouteChildren {
+  AnimeAnimeIdSlugRoute: typeof AnimeAnimeIdSlugRouteWithChildren
+}
+
+const AnimeRouteChildren: AnimeRouteChildren = {
+  AnimeAnimeIdSlugRoute: AnimeAnimeIdSlugRouteWithChildren,
+}
+
+const AnimeRouteWithChildren = AnimeRoute._addFileChildren(AnimeRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRoute,
+  AnimeRoute: AnimeRouteWithChildren,
   DownloadsRoute: DownloadsRoute,
+  FavouritesRoute: FavouritesRoute,
   HomeRoute: HomeRoute,
+  MoviesRoute: MoviesRoute,
+  MyListRoute: MyListRoute,
+  TvShowsRoute: TvShowsRoute,
+  WatchLaterRoute: WatchLaterRoute,
   SearchAnimeRoute: SearchAnimeRoute,
-  AnimeAnimeIdSlugRoute: AnimeAnimeIdSlugRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

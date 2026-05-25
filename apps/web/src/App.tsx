@@ -152,22 +152,45 @@ const SEARCH_FILTERS = [
   { label: 'Airing Status', value: 'Any' },
 ];
 const MAIN_NAV_ITEMS: SidebarNavItem[] = [
-  { title: 'Home', icon: Home },
-  { title: 'Anime', icon: Clapperboard },
-  { title: 'TV Shows', icon: Tv },
-  { title: 'Movies', icon: Film },
-  { title: 'My List', icon: Plus },
+  { title: 'Home', icon: Home, path: '/home' },
+  { title: 'Anime', icon: Clapperboard, path: '/anime' },
+  { title: 'TV Shows', icon: Tv, path: '/tv-shows' },
+  { title: 'Movies', icon: Film, path: '/movies' },
+  { title: 'My List', icon: Plus, path: '/my-list' },
 ];
 const LIBRARY_NAV_ITEMS: SidebarNavItem[] = [
-  { title: 'Favourites', icon: Heart },
-  { title: 'Watch Later', icon: Clock },
-  { title: 'Downloads', icon: Download },
-  { title: 'My Account', icon: User },
+  { title: 'Favourites', icon: Heart, path: '/favourites' },
+  { title: 'Watch Later', icon: Clock, path: '/watch-later' },
+  { title: 'Downloads', icon: Download, path: '/downloads' },
+  { title: 'My Account', icon: User, path: '/account' },
 ];
+
+type SidebarItemTitle =
+  | 'Home'
+  | 'Anime'
+  | 'TV Shows'
+  | 'Movies'
+  | 'My List'
+  | 'Favourites'
+  | 'Watch Later'
+  | 'Downloads'
+  | 'My Account';
+
+type SidebarRoutePath =
+  | '/home'
+  | '/anime'
+  | '/tv-shows'
+  | '/movies'
+  | '/my-list'
+  | '/favourites'
+  | '/watch-later'
+  | '/downloads'
+  | '/account';
 
 type SidebarNavItem = {
   icon: LucideIcon;
-  title: string;
+  path: SidebarRoutePath;
+  title: SidebarItemTitle;
 };
 
 type AuthDialogMode = 'login' | 'signup';
@@ -187,6 +210,7 @@ function App({
   animeSearchRoute = false,
   animeSearchSort: routeAnimeSearchSort = DEFAULT_ANIME_SEARCH_SORT,
   downloadsRoute = false,
+  placeholderRoute,
   routeAnimeId,
   routeEpisodeNumber,
 }: {
@@ -194,6 +218,7 @@ function App({
   animeSearchRoute?: boolean;
   animeSearchSort?: AnimeMetadataSearchSort;
   downloadsRoute?: boolean;
+  placeholderRoute?: SidebarItemTitle;
   routeAnimeId?: number;
   routeEpisodeNumber?: string;
   routeAnimeSlug?: string;
@@ -209,6 +234,7 @@ function App({
   const selectedAnimeId = Number.isFinite(routeAnimeId) ? routeAnimeId : undefined;
   const trimmedAnimeQuery = animeQuery.trim();
   const showingAnimeSearch = trimmedAnimeQuery.length > 0;
+  const showingEpisodeRoute = Boolean(routeEpisodeNumber);
 
   useEffect(() => {
     setAnimeQuery(routeAnimeSearchQuery);
@@ -518,15 +544,13 @@ function App({
         activeItem={
           downloadsRoute
             ? 'Downloads'
-            : selectedAnimeId || showingAnimeSearch || animeSearchRoute
-              ? 'Anime'
-              : 'Home'
+            : placeholderRoute ??
+              (selectedAnimeId || showingAnimeSearch || animeSearchRoute
+                ? 'Anime'
+                : 'Home')
         }
-        onDownloadsSelect={() => {
-          void navigate({ to: '/downloads' });
-        }}
-        onHomeSelect={() => {
-          void navigate({ to: '/home' });
+        onNavigate={(path) => {
+          void navigate({ to: path });
         }}
       />
       <SidebarInset className="min-h-svh min-w-0 bg-background text-foreground">
@@ -541,7 +565,17 @@ function App({
                   onQueryChange={handleAnimeQueryChange}
                 />
               </div>
-              <div className="flex justify-end md:col-start-3">
+              <div className="flex items-center justify-end gap-2 md:col-start-3">
+                <DownloadHistoryDropdown
+                  jobs={downloadJobs}
+                  loading={downloadJobsQuery.isFetching}
+                  mutating={
+                    deleteDownloadJobMutation.isPending ||
+                    retryDownloadMutation.isPending
+                  }
+                  onDelete={(job) => deleteDownloadJobMutation.mutate(job.id)}
+                  onRetry={(job) => retryDownloadMutation.mutate(job.id)}
+                />
                 <AccountControls />
               </div>
             </header>
@@ -563,7 +597,11 @@ function App({
               />
             ) : null}
 
-            {!downloadsRoute && showingAnimeSearch ? (
+            {!downloadsRoute && placeholderRoute ? (
+              <EmptyRoutePage title={placeholderRoute} />
+            ) : null}
+
+            {!downloadsRoute && !placeholderRoute && showingAnimeSearch ? (
               <AnimeSearchResults
                 loading={animeMetadataSearchQuery.isFetching}
                 results={animeResults}
@@ -575,7 +613,11 @@ function App({
               />
             ) : null}
 
-            {!downloadsRoute && !showingAnimeSearch && animeDetails ? (
+            {!downloadsRoute &&
+            !placeholderRoute &&
+            !showingEpisodeRoute &&
+            !showingAnimeSearch &&
+            animeDetails ? (
               <AnimeDetailPanel
                 anime={animeDetails}
                 loading={animeDetailsQuery.isFetching}
@@ -583,7 +625,11 @@ function App({
               />
             ) : null}
 
-            {!downloadsRoute && !showingAnimeSearch && animeDetails ? (
+            {!downloadsRoute &&
+            !placeholderRoute &&
+            !showingEpisodeRoute &&
+            !showingAnimeSearch &&
+            animeDetails ? (
               <RelatedAnimeSection
                 relations={animeRelations}
                 selectedAnimeId={selectedAnimeId}
@@ -592,9 +638,10 @@ function App({
             ) : null}
 
             {!downloadsRoute &&
+            !placeholderRoute &&
             !showingAnimeSearch &&
             animeDetails &&
-            routeEpisodeNumber ? (
+            showingEpisodeRoute ? (
               <EpisodeWatchPanel
                 anime={animeDetails}
                 episode={selectedEpisode}
@@ -605,7 +652,11 @@ function App({
               />
             ) : null}
 
-            {!downloadsRoute && !showingAnimeSearch && animeDetails ? (
+            {!downloadsRoute &&
+            !placeholderRoute &&
+            !showingEpisodeRoute &&
+            !showingAnimeSearch &&
+            animeDetails ? (
               <>
                 <Card>
                   <CardHeader>
@@ -633,121 +684,109 @@ function App({
                     {episodesQuery.isError ? <ErrorText error={episodesQuery.error} /> : null}
                   </CardContent>
                 </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Download Options</CardTitle>
-                    <CardDescription>
-                      {selectedEpisode
-                        ? `${selectedEpisode.mediaTitle} ${formatEpisodeTitle(selectedEpisode)}`
-                        : 'Select an episode'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {downloadOptionsQuery.isLoading ? (
-                      <ResultSkeleton />
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Quality</TableHead>
-                            <TableHead>Provider</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Source URL</TableHead>
-                            <TableHead className="text-right">Action</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {downloadOptions.map((option) => {
-                            const job = downloadJobByUrl.get(option.providerUrl);
-                            const support = getDownloadSupport(option);
-                            const active = job ? isActiveDownloadStatus(job.status) : false;
-                            const completed = job?.status === 'completed';
-                            const mutating =
-                              startDownloadMutation.isPending ||
-                              retryDownloadMutation.isPending;
-
-                            return (
-                              <TableRow key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}>
-                                <TableCell>
-                                  <Badge variant="outline">{option.quality}</Badge>
-                                </TableCell>
-                                <TableCell>{formatHostProvider(option.hostProvider)}</TableCell>
-                                <TableCell>
-                                  {job ? (
-                                    <JobStatusBadge job={job} />
-                                  ) : (
-                                    <Badge variant={support.supported ? 'secondary' : 'outline'}>
-                                      {support.label}
-                                    </Badge>
-                                  )}
-                                </TableCell>
-                                <TableCell className="max-w-[18rem] truncate font-mono text-xs">
-                                  {option.providerUrl}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Button
-                                    disabled={
-                                      !support.supported ||
-                                      active ||
-                                      completed ||
-                                      mutating
-                                    }
-                                    size="sm"
-                                    type="button"
-                                    variant={job?.status === 'completed' ? 'outline' : 'default'}
-                                    onClick={() => handleDownload(option, job)}
-                                  >
-                                    <Download />
-                                    {getDownloadButtonLabel(job, support.supported)}
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    )}
-                    {downloadOptionsQuery.isError ? <ErrorText error={downloadOptionsQuery.error} /> : null}
-                    {startDownloadMutation.isError ? (
-                      <ErrorText error={startDownloadMutation.error} />
-                    ) : null}
-                    {retryDownloadMutation.isError ? (
-                      <ErrorText error={retryDownloadMutation.error} />
-                    ) : null}
-                  </CardContent>
-                </Card>
               </>
             ) : null}
 
-            {!downloadsRoute ? (
-              <>
-                {!showingAnimeSearch && !animeDetails ? (
-                  <ContinueWatchingPanel
-                    files={localMediaFiles}
-                    items={continueWatching}
-                    loading={continueWatchingQuery.isFetching}
-                    onResume={handleContinueWatchingSelect}
-                  />
-                ) : null}
-                <DownloadQueue
-                  jobs={downloadJobs}
-                  loading={downloadJobsQuery.isFetching}
-                  mutating={
-                    deleteDownloadJobMutation.isPending ||
-                    retryDownloadMutation.isPending
-                  }
-                  onDelete={(job) => deleteDownloadJobMutation.mutate(job.id)}
-                  onRetry={(job) => retryDownloadMutation.mutate(job.id)}
-                />
-                <LocalLibrary
-                  files={localMediaFiles}
-                  loading={localMediaFilesQuery.isFetching}
-                  mutating={deleteLocalFileMutation.isPending}
-                  onDelete={(file) => deleteLocalFileMutation.mutate(file.id)}
-                  onPlay={handleLocalEpisodeSelect}
-                />
-              </>
+            {!downloadsRoute &&
+            !placeholderRoute &&
+            showingEpisodeRoute &&
+            !showingAnimeSearch &&
+            animeDetails ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Download Options</CardTitle>
+                  <CardDescription>
+                    {selectedEpisode
+                      ? `${selectedEpisode.mediaTitle} ${formatEpisodeTitle(selectedEpisode)}`
+                      : 'Select an episode'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {downloadOptionsQuery.isLoading ? (
+                    <ResultSkeleton />
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Quality</TableHead>
+                          <TableHead>Provider</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Source URL</TableHead>
+                          <TableHead className="text-right">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {downloadOptions.map((option) => {
+                          const job = downloadJobByUrl.get(option.providerUrl);
+                          const support = getDownloadSupport(option);
+                          const active = job ? isActiveDownloadStatus(job.status) : false;
+                          const completed = job?.status === 'completed';
+                          const mutating =
+                            startDownloadMutation.isPending ||
+                            retryDownloadMutation.isPending;
+
+                          return (
+                            <TableRow key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}>
+                              <TableCell>
+                                <Badge variant="outline">{option.quality}</Badge>
+                              </TableCell>
+                              <TableCell>{formatHostProvider(option.hostProvider)}</TableCell>
+                              <TableCell>
+                                {job ? (
+                                  <JobStatusBadge job={job} />
+                                ) : (
+                                  <Badge variant={support.supported ? 'secondary' : 'outline'}>
+                                    {support.label}
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="max-w-[18rem] truncate font-mono text-xs">
+                                {option.providerUrl}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  disabled={
+                                    !support.supported ||
+                                    active ||
+                                    completed ||
+                                    mutating
+                                  }
+                                  size="sm"
+                                  type="button"
+                                  variant={job?.status === 'completed' ? 'outline' : 'default'}
+                                  onClick={() => handleDownload(option, job)}
+                                >
+                                  <Download />
+                                  {getDownloadButtonLabel(job, support.supported)}
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                  {downloadOptionsQuery.isError ? <ErrorText error={downloadOptionsQuery.error} /> : null}
+                  {startDownloadMutation.isError ? (
+                    <ErrorText error={startDownloadMutation.error} />
+                  ) : null}
+                  {retryDownloadMutation.isError ? (
+                    <ErrorText error={retryDownloadMutation.error} />
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {!downloadsRoute &&
+            !placeholderRoute &&
+            !showingAnimeSearch &&
+            !animeDetails ? (
+              <ContinueWatchingPanel
+                files={localMediaFiles}
+                items={continueWatching}
+                loading={continueWatchingQuery.isFetching}
+                onResume={handleContinueWatchingSelect}
+              />
             ) : null}
           </div>
         </div>
@@ -1105,6 +1144,17 @@ function DownloadsPage({
   );
 }
 
+function EmptyRoutePage({ title }: { title: SidebarItemTitle }) {
+  return (
+    <section className="rounded-xl border bg-card p-6 text-card-foreground">
+      <h2 className="text-2xl font-semibold">{title}</h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        This section is ready for future Elysium features.
+      </p>
+    </section>
+  );
+}
+
 function EpisodeWatchPanel({
   anime,
   episode,
@@ -1341,12 +1391,10 @@ function EpisodeWatchPanel({
 
 function ElysiumSidebar({
   activeItem,
-  onDownloadsSelect,
-  onHomeSelect,
+  onNavigate,
 }: {
-  activeItem: string;
-  onDownloadsSelect: () => void;
-  onHomeSelect: () => void;
+  activeItem: SidebarItemTitle;
+  onNavigate: (path: SidebarRoutePath) => void;
 }) {
   return (
     <Sidebar collapsible="icon">
@@ -1356,7 +1404,7 @@ function ElysiumSidebar({
             aria-label="Go to home"
             className="flex min-w-0 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:justify-center"
             type="button"
-            onClick={onHomeSelect}
+            onClick={() => onNavigate('/home')}
           >
             <img
               alt=""
@@ -1375,15 +1423,13 @@ function ElysiumSidebar({
           activeItem={activeItem}
           items={MAIN_NAV_ITEMS}
           label="Home"
-          onDownloadsSelect={onDownloadsSelect}
-          onHomeSelect={onHomeSelect}
+          onNavigate={onNavigate}
         />
         <SidebarNavSection
           activeItem={activeItem}
           items={LIBRARY_NAV_ITEMS}
           label="Library"
-          onDownloadsSelect={onDownloadsSelect}
-          onHomeSelect={onHomeSelect}
+          onNavigate={onNavigate}
         />
       </SidebarContent>
       <SidebarRail />
@@ -1395,14 +1441,12 @@ function SidebarNavSection({
   activeItem,
   items,
   label,
-  onDownloadsSelect,
-  onHomeSelect,
+  onNavigate,
 }: {
-  activeItem: string;
+  activeItem: SidebarItemTitle;
   items: SidebarNavItem[];
   label: string;
-  onDownloadsSelect: () => void;
-  onHomeSelect: () => void;
+  onNavigate: (path: SidebarRoutePath) => void;
 }) {
   return (
     <SidebarGroup>
@@ -1420,11 +1464,7 @@ function SidebarNavSection({
                   isActive={active}
                   tooltip={item.title}
                   type="button"
-                  onClick={getSidebarAction(
-                    item.title,
-                    onHomeSelect,
-                    onDownloadsSelect,
-                  )}
+                  onClick={() => onNavigate(item.path)}
                 >
                   <Icon fill={active ? 'currentColor' : 'none'} />
                   <span>{item.title}</span>
@@ -2334,7 +2374,7 @@ function ContinueWatchingPanel({
   );
 }
 
-function DownloadQueue({
+function DownloadHistoryDropdown({
   jobs,
   loading,
   mutating,
@@ -2347,122 +2387,55 @@ function DownloadQueue({
   onDelete: (job: DownloadJob) => void;
   onRetry: (job: DownloadJob) => void;
 }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Downloads</CardTitle>
-        <CardDescription>
-          {loading ? 'Refreshing download status' : 'Tracked local download jobs'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {jobs.length ? (
-          jobs.map((job) => (
-            <DownloadJobRow
-              job={job}
-              key={job.id}
-              mutating={mutating}
-              onDelete={onDelete}
-              onRetry={onRetry}
-            />
-          ))
-        ) : (
-          <p className="text-sm text-muted-foreground">No downloads started yet.</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+  const activeCount = jobs.filter((job) => isActiveDownloadStatus(job.status)).length;
 
-function LocalLibrary({
-  files,
-  loading,
-  mutating,
-  onDelete,
-  onPlay,
-}: {
-  files: LocalMediaFile[];
-  loading: boolean;
-  mutating: boolean;
-  onDelete: (file: LocalMediaFile) => void;
-  onPlay: (file: LocalMediaFile) => void;
-}) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Library</CardTitle>
-        <CardDescription>
-          {loading ? 'Refreshing local files' : 'Downloaded local media files'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {files.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Episode</TableHead>
-                <TableHead>Quality</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>Path</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {files.map((file) => (
-                <TableRow key={file.id}>
-                  <TableCell className="font-medium">
-                    {file.displayTitle ?? file.sourceMediaTitle ?? file.filename}
-                  </TableCell>
-                  <TableCell>
-                    {file.episodeNumber
-                      ? `Episode ${file.episodeNumber}`
-                      : file.episodeTitle ?? 'Unknown'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{file.quality}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {file.sizeBytes ? formatBytes(file.sizeBytes) : 'Unknown'}
-                  </TableCell>
-                  <TableCell className="max-w-[22rem] truncate font-mono text-xs">
-                    {file.filePath}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        aria-label={`Play ${file.filename}`}
-                        disabled={!file.metadataId || !file.episodeNumber}
-                        size="icon"
-                        type="button"
-                        variant="ghost"
-                        onClick={() => onPlay(file)}
-                      >
-                        <Play />
-                      </Button>
-                      <Button
-                        aria-label={`Delete ${file.filename}`}
-                        disabled={mutating}
-                        size="icon"
-                        type="button"
-                        variant="ghost"
-                        onClick={() => onDelete(file)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Completed downloads will appear here.
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label="Open download history"
+          className="relative"
+          size="icon"
+          type="button"
+          variant="outline"
+        >
+          <Download />
+          {activeCount ? (
+            <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+              {activeCount}
+            </span>
+          ) : null}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-[min(30rem,calc(100vw-2rem))] p-0"
+      >
+        <div className="border-b px-4 py-3">
+          <DropdownMenuLabel className="p-0">Downloads</DropdownMenuLabel>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {loading ? 'Refreshing download status' : 'Tracked local download jobs'}
           </p>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+        <div className="max-h-[min(70vh,34rem)] space-y-3 overflow-y-auto p-3">
+          {jobs.length ? (
+            jobs.map((job) => (
+              <DownloadJobRow
+                job={job}
+                key={job.id}
+                mutating={mutating}
+                onDelete={onDelete}
+                onRetry={onRetry}
+              />
+            ))
+          ) : (
+            <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+              No downloads started yet.
+            </p>
+          )}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -3057,22 +3030,6 @@ function normalizeEpisodeNumber(value?: string) {
     .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)));
 
   return normalized?.match(/\d+(?:\.\d+)?/)?.[0];
-}
-
-function getSidebarAction(
-  title: string,
-  onHomeSelect: () => void,
-  onDownloadsSelect: () => void,
-) {
-  if (title === 'Home') {
-    return onHomeSelect;
-  }
-
-  if (title === 'Downloads') {
-    return onDownloadsSelect;
-  }
-
-  return undefined;
 }
 
 function toAnimeSlug(
