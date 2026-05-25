@@ -205,6 +205,7 @@ export interface ResolvedDownload {
   sizeBytes?: number;
   expiresAt?: string;
   headers?: Record<string, string>;
+  requestHeaders?: Record<string, string>;
   engine: "http" | "provider-cli" | "custom";
 }
 

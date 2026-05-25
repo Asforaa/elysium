@@ -84,7 +84,7 @@ Backend:
 - Backend should expose combined source-provider operations where useful, such as `/providers/search`, so the frontend does not have to hardcode one source adapter.
 - Treat Gopeed as an external download worker behind an HTTP API boundary, not as vendored/embedded Go core, unless the user explicitly revisits that architecture.
 - Resolve host-provider pages through `apps/api/src/download-engine` before handing a direct file URL to any download worker.
-- Do not solve or bypass host-provider automated security checks; return an unsupported/failed resolver state instead.
+- Do not solve CAPTCHAs, logins, paywalls, or private links. Public first-party client flows that only require the same page JS to finish loading can be mirrored in a resolver when the direct browser flow is verified first.
 - Source providers are code adapters. Host resolvers are shared and should be reused by every source provider that returns the same host links.
 - Download jobs currently live in the backend `download-jobs` module as an in-memory first pass.
 - Prefer Gopeed when reachable, then fall back to the local stream downloader so the app can still perform real downloads during development.
@@ -313,6 +313,14 @@ MediaFire observation:
   - `https://www.mediafire.com/file/k9t2grrtfa5z8se/%5BWitanime.com%5D+AB+EP+05+HD.zip/file`
 - The MediaFire page exposed a visible `Download file` link.
 - Direct MediaFire download URLs may be time-limited; resolve them just before enqueue/download.
+
+Current host resolver behavior:
+
+- MediaFire and Google Drive resolve to direct HTTP URLs.
+- Workupload mirrors the public JS wait/check flow, then reads `/api/file/getDownloadServer/:id`; keep the returned cookie with the final workupload subdomain URL.
+- mp4upload requires the two-step public form flow: `download1`, then the visible `Download Now`/`download2` form, then the 302 `Location`.
+- GoFile uses the public website API with a guest token and generated website token; keep the bearer header with the resolved file URL.
+- Mega uses `megajs` as a custom backend download path because the browser button streams encrypted chunks, not a normal direct file URL.
 
 ## UI Intent
 

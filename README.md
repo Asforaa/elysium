@@ -141,13 +141,10 @@ Current supported host buttons in the UI:
 
 - MediaFire
 - Google Drive
-
-Known unsupported or unfinished hosts:
-
-- Mega needs a Mega-aware engine.
-- GoFile currently needs API/auth handling for reliable direct links.
-- Workupload is returning an automated security check, which Elysium should not solve or bypass.
-- mp4upload currently returns HTML instead of a direct file connection in the resolver smoke tests.
+- Workupload
+- mp4upload
+- GoFile
+- Mega
 
 The first smoke test for this layer is:
 
@@ -337,12 +334,22 @@ Start with the easiest host providers from the observed WitAnime flow:
 - GoFile
 - Workupload
 - mp4upload
+- Mega
 
 MediaFire looked straightforward in the first browser check:
 
 - WitAnime opens a public MediaFire file page.
 - MediaFire page contains a visible `Download file` anchor.
 - The direct URL may be time-limited, so the resolver should resolve it right before enqueueing/downloading.
+
+Current resolver behavior:
+
+- MediaFire resolves the visible download anchor into a direct HTTP file URL.
+- Google Drive follows the public confirmation form into a direct HTTP file URL.
+- Workupload performs the same public client-side wait/check flow the page runs, reads `/api/file/getDownloadServer/:id`, and carries the returned cookie to the final subdomain URL.
+- mp4upload submits the public `download1` form, then the visible `Download Now`/`download2` form, and uses the 302 location as the direct HTTP file URL.
+- GoFile creates a public guest session through the website API, generates the website token the same way the loaded page script does, and passes the bearer header through to the worker.
+- Mega is not plain HTTP after the page button; it is encrypted chunk streaming. Elysium resolves file metadata with `megajs` and downloads it through the backend's custom Mega path.
 
 Each host resolver should return structured output:
 
@@ -355,6 +362,7 @@ interface ResolvedDownload {
   sizeBytes?: number;
   expiresAt?: string;
   headers?: Record<string, string>;
+  requestHeaders?: Record<string, string>;
   engine: "http" | "provider-cli" | "custom";
 }
 ```

@@ -9,7 +9,6 @@ import {
   Film,
   Heart,
   Home,
-  LogIn,
   LogOut,
   Moon,
   Plus,
@@ -254,7 +253,7 @@ function App({
           <div className="flex w-full flex-col gap-4">
             <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
-                <SidebarTrigger className="-ml-2" />
+                <SidebarTrigger className="-ml-2 md:hidden" />
               </div>
               <AccountControls />
             </header>
@@ -418,13 +417,14 @@ function ElysiumSidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
-        <div className="flex h-9 items-center gap-2 rounded-md px-2">
+        <div className="flex h-9 items-center gap-2 rounded-md px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
             E
           </div>
           <span className="truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
             Elysium
           </span>
+          <SidebarTrigger className="ml-auto hidden md:inline-flex group-data-[collapsible=icon]:hidden" />
         </div>
       </SidebarHeader>
       <SidebarContent className="py-3">
@@ -636,7 +636,6 @@ function AccountControls() {
           variant="outline"
           onClick={() => loginMutation.mutate()}
         >
-          <LogIn />
           Login
         </Button>
         <Button
@@ -644,7 +643,6 @@ function AccountControls() {
           type="button"
           onClick={() => signupMutation.mutate()}
         >
-          <Plus />
           Sign up
         </Button>
       </div>
@@ -808,12 +806,12 @@ function AnimeDetailPanel({
 
   return (
     <section className="relative overflow-hidden rounded-xl border bg-card text-card-foreground">
-      <div className="relative z-0 h-44 bg-muted md:h-56">
+      <div className="relative z-0 bg-muted">
         {anime.bannerImage ? (
           <FocusableImage
             alt={`${anime.displayTitle} banner`}
-            buttonClassName="absolute inset-0 h-full w-full"
-            imageClassName="h-full w-full object-cover opacity-80"
+            buttonClassName="block w-full rounded-none"
+            imageClassName="h-auto w-full object-contain opacity-80"
             src={anime.bannerImage}
             onFocusImage={onImageFocus}
           />
@@ -1144,31 +1142,20 @@ function ErrorText({ error }: { error: Error }) {
 function getDownloadSupport(option: DownloadOption) {
   const provider = option.hostProvider.toLowerCase().trim();
 
-  if (provider === 'mediafire' || provider === 'google drive' || provider === 'google-drive') {
+  if (
+    [
+      'gofile',
+      'google drive',
+      'google-drive',
+      'mediafire',
+      'mega',
+      'mp4upload',
+      'workupload',
+    ].includes(provider)
+  ) {
     return {
       supported: true,
       label: 'Supported',
-    };
-  }
-
-  if (provider === 'mp4upload') {
-    return {
-      supported: false,
-      label: 'Resolver failing',
-    };
-  }
-
-  if (provider === 'mega') {
-    return {
-      supported: false,
-      label: 'Needs Mega engine',
-    };
-  }
-
-  if (provider === 'gofile' || provider === 'workupload') {
-    return {
-      supported: false,
-      label: 'Unsupported',
     };
   }
 

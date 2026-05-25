@@ -3,7 +3,7 @@ import { createWriteStream } from 'node:fs';
 import { mkdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { finished } from 'node:stream/promises';
+import { finished, pipeline } from 'node:stream/promises';
 import type {
   DownloadJob,
   DownloadOption,
@@ -22,6 +22,11 @@ const DOWNLOAD_HEADERS = {
   'user-agent':
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Elysium/0.1',
 };
+
+interface MegaProgress {
+  bytesLoaded?: number;
+  bytesTotal?: number;
+}
 
 @Injectable()
 export class DownloadJobsService {
@@ -79,7 +84,7 @@ export class DownloadJobsService {
       this.updateJob(job, { status: 'resolving' });
       const connection = await this.resolver.resolve(job.option);
 
-      if (connection.status !== 'resolved' || !connection.resolved?.directUrl) {
+      if (connection.status !== 'resolved' || !connection.resolved) {
         this.updateJob(job, {
           status: connection.status === 'unsupported' ? 'cancelled' : 'failed',
           errorMessage:
@@ -93,6 +98,19 @@ export class DownloadJobsService {
         resolved: connection.resolved,
         totalBytes: connection.resolved.sizeBytes,
       });
+
+      if (isMegaCustomDownload(connection.resolved)) {
+        await this.downloadMega(job, connection.resolved);
+        return;
+      }
+
+      if (!connection.resolved.directUrl) {
+        this.updateJob(job, {
+          status: 'failed',
+          errorMessage: 'Download option resolved without a direct URL',
+        });
+        return;
+      }
 
       if (process.env.ELYSIUM_DOWNLOAD_ENGINE !== 'local') {
         const startedByGopeed = await this.tryStartGopeedJob(
@@ -195,6 +213,7 @@ export class DownloadJobsService {
       headers: {
         ...DOWNLOAD_HEADERS,
         referer: resolvedDownload.sourceUrl,
+        ...resolvedDownload.requestHeaders,
       },
       redirect: 'follow',
     });
@@ -248,6 +267,53 @@ export class DownloadJobsService {
     }
   }
 
+  private async downloadMega(
+    job: DownloadJob,
+    resolvedDownload: ResolvedDownload,
+  ) {
+    const { File } = await import('megajs');
+    const file = File.fromURL(resolvedDownload.sourceUrl);
+
+    await file.loadAttributes();
+
+    const downloadDir =
+      process.env.ELYSIUM_DOWNLOAD_DIR ?? DEFAULT_DOWNLOAD_DIR;
+    const filename = safeFilename(
+      resolvedDownload.filename ?? file.name ?? `elysium-mega-${Date.now()}`,
+    );
+    const totalBytes = file.size ?? resolvedDownload.sizeBytes;
+
+    await mkdir(downloadDir, { recursive: true });
+    const destinationPath = await nextAvailablePath(downloadDir, filename);
+    this.updateJob(job, {
+      destinationPath,
+      engine: 'local-fetch',
+      filename,
+      status: 'downloading',
+      totalBytes,
+    });
+
+    const startedAt = Date.now();
+    const stream = file.download({ maxConnections: 6 });
+
+    stream.on('progress', (progress: MegaProgress) => {
+      const progressBytes = progress.bytesLoaded ?? 0;
+
+      this.updateJob(job, {
+        progressBytes,
+        speedBytesPerSecond: bytesPerSecond(progressBytes, startedAt),
+        totalBytes: progress.bytesTotal ?? totalBytes,
+      });
+    });
+
+    await pipeline(stream, createWriteStream(destinationPath, { flags: 'wx' }));
+    this.updateJob(job, {
+      progressBytes: totalBytes ?? job.progressBytes,
+      speedBytesPerSecond: 0,
+      status: 'completed',
+    });
+  }
+
   private updateJob(job: DownloadJob, patch: Partial<DownloadJob>) {
     Object.assign(job, patch, { updatedAt: new Date().toISOString() });
   }
@@ -271,6 +337,13 @@ function mapGopeedStatus(task: GopeedTask): DownloadJob['status'] {
 
 function isTerminal(status: DownloadJob['status']) {
   return ['completed', 'failed', 'cancelled'].includes(status);
+}
+
+function isMegaCustomDownload(download: ResolvedDownload) {
+  return (
+    download.engine === 'custom' &&
+    download.provider.toLowerCase().trim() === 'mega'
+  );
 }
 
 function safeFilename(filename: string) {

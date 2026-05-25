@@ -62,6 +62,13 @@ export class GopeedClient {
       body: JSON.stringify({
         req: {
           url: download.directUrl,
+          ...(download.requestHeaders
+            ? {
+                extra: {
+                  header: download.requestHeaders,
+                },
+              }
+            : {}),
         },
         opts: {
           ...(download.filename ? { name: download.filename } : {}),
