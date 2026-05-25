@@ -10,13 +10,19 @@
   ],
   "scripts": {
     "dev": "turbo dev",
+    "dev:local": "turbo dev:app",
     "build": "turbo build",
     "lint": "turbo lint",
     "lint:strict": "turbo lint:strict",
     "check": "turbo check",
     "test": "turbo test",
-    "web:dev": "bun run --filter @elysium/web dev",
-    "api:dev": "bun run --filter @elysium/api start:dev",
+    "web:dev": "bun run --filter @elysium/web dev:app",
+    "web:dev:portless": "bun run --filter @elysium/web dev:portless",
+    "api:dev": "bun run --filter @elysium/api dev:app",
+    "api:dev:portless": "bun run --filter @elysium/api dev:portless",
+    "dev:portless": "turbo dev",
+    "portless:list": "portless list",
+    "portless:prune": "portless prune",
     "db:start": "bun run --filter @elysium/api db:start",
     "db:status": "bun run --filter @elysium/api db:status",
     "db:stop": "bun run --filter @elysium/api db:stop",
@@ -26,6 +32,7 @@
   "author": "",
   "license": "UNLICENSED",
   "devDependencies": {
+    "portless": "^0.13.0",
     "turbo": "^2.9.14"
   }
 }

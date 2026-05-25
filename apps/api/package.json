@@ -10,6 +10,9 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
+    "dev": "portless",
+    "dev:app": "nest start --watch",
+    "dev:portless": "portless",
     "start:debug": "nest start --debug --watch",
     "start:prod": "bun dist/main.js",
     "check": "tsc --noEmit -p tsconfig.json",
@@ -21,6 +24,7 @@
     "lint:strict": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "smoke:witanime": "bun src/cli/witanime-smoke.ts",
+    "smoke:anilist": "bun src/cli/anilist-smoke.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
@@ -36,6 +40,10 @@
     "pg": "^8.21.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
+  },
+  "portless": {
+    "name": "api.elysium",
+    "script": "dev:app"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

@@ -43,6 +43,7 @@ Package manager / monorepo:
 - App projects live under `apps/*`.
 - Shared packages can live under `packages/*` later.
 - Vercel is configured at the repo root for the Vite frontend using Bun install/build commands.
+- Portless is configured for stable local development URLs.
 
 Frontend:
 
@@ -57,7 +58,13 @@ Backend:
 
 - NestJS.
 - PostgreSQL.
-- Backend owns provider adapters, link resolution, download queue, download execution, persistence, and filesystem interaction.
+- Backend owns metadata adapters, source provider adapters, link resolution, download queue, download execution, persistence, and filesystem interaction.
+
+Metadata:
+
+- AniList is the source of truth for anime names, episode counts, artwork, descriptions, genres, studios, characters, and other canonical anime metadata.
+- The frontend uses AniList autocomplete first.
+- After selecting an AniList entry, Elysium uses the selected anime title to search source/download adapters like WitAnime.
 
 Current app packages:
 
@@ -74,12 +81,16 @@ bun run build
 bun run check
 bun run web:dev
 bun run api:dev
+bun run dev:portless
+bun run web:dev:portless
+bun run api:dev:portless
 bun run lint
 bun run lint:strict
 bun run db:start
 bun run db:ping
 bun run db:stop
 bun run --filter @elysium/api smoke:witanime -- Akane-banashi 5
+bun run --filter @elysium/api smoke:anilist -- Akane-banashi
 ```
 
 `bun run lint` is advisory. Use `bun run check` and `bun run build` as the hard correctness gates, and reserve `bun run lint:strict` for intentional cleanup passes.
@@ -97,6 +108,7 @@ The browser should not directly scrape or download from media providers.
 The frontend should talk to the local backend only:
 
 ```text
+Frontend UI -> Local NestJS API -> Metadata provider adapters
 Frontend UI -> Local NestJS API -> Source provider adapters -> Host provider resolvers -> Download engine -> Local files
 ```
 
@@ -106,6 +118,7 @@ This avoids CORS issues, keeps cookies/session behavior isolated if ever needed,
 
 Likely entities:
 
+- Metadata provider: an anime metadata source such as AniList.
 - Source provider: the main site being searched, such as WitAnime.
 - Media item: an anime/show/movie returned by a source provider.
 - Episode/media piece: a downloadable/watchable unit under a media item.
@@ -119,6 +132,9 @@ Likely entities:
 
 Provider discovery:
 
+- Search AniList with autocomplete.
+- Use AniList as the canonical anime metadata source.
+- Show AniList title, descriptions, cover/banner artwork, metadata, genres, studios, and characters.
 - Search supported main providers.
 - Show search results with title, image, type/status, and source provider.
 - Open a media item from search results.

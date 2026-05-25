@@ -1,10 +1,21 @@
 import { useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { SyntheticEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { EpisodeSummary, MediaSearchResult } from '@elysium/shared';
-import { getDownloadOptions, getEpisodes, listProviders, searchMedia } from '@/lib/api';
+import type {
+  AnimeMetadataDetails,
+  AnimeMetadataSearchResult,
+  EpisodeSummary,
+  MediaSearchResult,
+} from '@elysium/shared';
+import {
+  getAnimeMetadata,
+  getDownloadOptions,
+  getEpisodes,
+  listProviders,
+  searchAnimeMetadata,
+  searchMedia,
+} from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardAction,
@@ -25,12 +36,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
+const EMPTY_ANIME_RESULTS: AnimeMetadataSearchResult[] = [];
 const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
 const EMPTY_EPISODES: EpisodeSummary[] = [];
 
 function App() {
-  const [draftQuery, setDraftQuery] = useState('Akane-banashi');
-  const [submittedQuery, setSubmittedQuery] = useState('Akane-banashi');
+  const [animeQuery, setAnimeQuery] = useState('Akane-banashi');
+  const [selectedAnime, setSelectedAnime] = useState<AnimeMetadataSearchResult | null>(null);
   const [selectedMediaUrl, setSelectedMediaUrl] = useState<string | null>(null);
   const [selectedEpisodeUrl, setSelectedEpisodeUrl] = useState<string | null>(null);
 
@@ -39,10 +51,30 @@ function App() {
     queryFn: listProviders,
   });
 
+  const animeSearchQuery = useQuery({
+    queryKey: ['metadata', 'anilist', 'search', animeQuery.trim()],
+    queryFn: () => searchAnimeMetadata(animeQuery.trim()),
+    enabled: animeQuery.trim().length >= 2,
+    staleTime: 60_000,
+  });
+
+  const animeResults = animeSearchQuery.data ?? EMPTY_ANIME_RESULTS;
+  const previewAnime = selectedAnime ?? animeResults[0];
+  const sourceSearchTerm = selectedAnime?.sourceSearchTitle ?? '';
+
+  const animeDetailsQuery = useQuery({
+    queryKey: ['metadata', 'anilist', 'anime', previewAnime?.id],
+    queryFn: () => getAnimeMetadata(previewAnime?.id ?? 0),
+    enabled: Boolean(previewAnime?.id),
+    staleTime: 5 * 60_000,
+  });
+
+  const animeDetails = animeDetailsQuery.data ?? previewAnime;
+
   const searchQuery = useQuery({
-    queryKey: ['search', submittedQuery],
-    queryFn: () => searchMedia(submittedQuery),
-    enabled: Boolean(submittedQuery),
+    queryKey: ['search', sourceSearchTerm],
+    queryFn: () => searchMedia(sourceSearchTerm),
+    enabled: Boolean(sourceSearchTerm),
   });
 
   const searchResults = searchQuery.data ?? EMPTY_SEARCH_RESULTS;
@@ -71,15 +103,16 @@ function App() {
 
   const downloadOptions = downloadOptionsQuery.data ?? [];
 
-  function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const nextQuery = draftQuery.trim();
+  function handleAnimeQueryChange(value: string) {
+    setAnimeQuery(value);
+    setSelectedAnime(null);
+    setSelectedMediaUrl(null);
+    setSelectedEpisodeUrl(null);
+  }
 
-    if (!nextQuery) {
-      return;
-    }
-
-    setSubmittedQuery(nextQuery);
+  function handleAnimeSelect(item: AnimeMetadataSearchResult) {
+    setAnimeQuery(item.displayTitle);
+    setSelectedAnime(item);
     setSelectedMediaUrl(null);
     setSelectedEpisodeUrl(null);
   }
@@ -93,41 +126,45 @@ function App() {
             <Badge variant="secondary">Private media center</Badge>
           </div>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Search source providers, inspect episodes, and review available public download
-            providers.
+            Search AniList for canonical anime metadata, then match the selected title against
+            source adapters for public download options.
           </p>
         </header>
 
         <Card>
           <CardHeader>
-            <CardTitle>Source Search</CardTitle>
-            <CardDescription>Current adapter: WitAnime</CardDescription>
+            <CardTitle>AniList Search</CardTitle>
+            <CardDescription>Autocomplete is the source of truth for anime metadata.</CardDescription>
             <CardAction>
               <Badge variant={providersQuery.isSuccess ? 'outline' : 'secondary'}>
-                {providersQuery.data?.length ?? 0} provider
+                {providersQuery.data?.length ?? 0} source provider
               </Badge>
             </CardAction>
           </CardHeader>
           <CardContent>
-            <form className="flex flex-col gap-2 sm:flex-row" onSubmit={handleSearch}>
-              <Input
-                aria-label="Search media"
-                value={draftQuery}
-                onChange={(event) => setDraftQuery(event.target.value)}
-                placeholder="Search anime"
-              />
-              <Button type="submit" disabled={searchQuery.isFetching}>
-                {searchQuery.isFetching ? 'Searching' : 'Search'}
-              </Button>
-            </form>
+            <AnimeAutocomplete
+              query={animeQuery}
+              results={animeResults}
+              loading={animeSearchQuery.isFetching}
+              selectedId={selectedAnime?.id}
+              onQueryChange={handleAnimeQueryChange}
+              onSelect={handleAnimeSelect}
+            />
+            {animeSearchQuery.isError ? <ErrorText error={animeSearchQuery.error} /> : null}
           </CardContent>
         </Card>
+
+        {animeDetails ? (
+          <AnimeDetailPanel anime={animeDetails} loading={animeDetailsQuery.isFetching} />
+        ) : null}
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <Card>
             <CardHeader>
-              <CardTitle>Results</CardTitle>
-              <CardDescription>{searchResults.length} media item found</CardDescription>
+              <CardTitle>Source Matches</CardTitle>
+              <CardDescription>
+                {sourceSearchTerm ? `Searching WitAnime for "${sourceSearchTerm}"` : 'Pick an anime'}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {searchQuery.isLoading ? (
@@ -153,7 +190,7 @@ function App() {
             <CardHeader>
               <CardTitle>Episodes</CardTitle>
               <CardDescription>
-                {selectedMedia ? selectedMedia.title : 'Select a media item'}
+                {selectedMedia ? selectedMedia.title : 'Select a source match'}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex max-h-[28rem] flex-col gap-2 overflow-auto">
@@ -218,6 +255,215 @@ function App() {
   );
 }
 
+function AnimeAutocomplete({
+  query,
+  results,
+  loading,
+  selectedId,
+  onQueryChange,
+  onSelect,
+}: {
+  query: string;
+  results: AnimeMetadataSearchResult[];
+  loading: boolean;
+  selectedId?: number;
+  onQueryChange: (value: string) => void;
+  onSelect: (item: AnimeMetadataSearchResult) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Input
+        aria-label="Search AniList"
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+        placeholder="Search anime on AniList"
+      />
+      <div className="max-h-72 overflow-auto rounded-xl border">
+        {loading ? (
+          <div className="space-y-2 p-3">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : (
+          results.map((item) => (
+            <button
+              className="flex w-full items-center gap-3 border-b p-3 text-left last:border-b-0 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              key={item.id}
+              type="button"
+              onClick={() => onSelect(item)}
+            >
+              {item.coverImage?.medium ? (
+                <img
+                  alt=""
+                  className="h-14 w-10 rounded-md border object-cover"
+                  src={item.coverImage.medium}
+                  onError={hideBrokenImage}
+                />
+              ) : null}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{item.displayTitle}</span>
+                <span className="block truncate text-sm text-muted-foreground">
+                  {[item.title.english, item.title.native].filter(Boolean).join(' / ')}
+                </span>
+              </span>
+              <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                {item.seasonYear ? <Badge variant="outline">{item.seasonYear}</Badge> : null}
+                {selectedId === item.id ? <Badge>Selected</Badge> : null}
+              </span>
+            </button>
+          ))
+        )}
+        {!loading && query.trim().length >= 2 && results.length === 0 ? (
+          <p className="p-3 text-sm text-muted-foreground">No AniList results found.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function AnimeDetailPanel({
+  anime,
+  loading,
+}: {
+  anime: AnimeMetadataSearchResult | AnimeMetadataDetails;
+  loading: boolean;
+}) {
+  const details = hasDetails(anime) ? anime : undefined;
+  const coverUrl = anime.coverImage?.extraLarge ?? anime.coverImage?.large ?? anime.coverImage?.medium;
+
+  return (
+    <section className="overflow-hidden rounded-xl border bg-card text-card-foreground">
+      <div className="h-44 bg-muted md:h-56">
+        {anime.bannerImage ? (
+          <img
+            alt=""
+            className="h-full w-full object-cover opacity-80"
+            src={anime.bannerImage}
+            onError={hideBrokenImage}
+          />
+        ) : null}
+      </div>
+      <div className="grid gap-4 p-4 md:grid-cols-[12rem_minmax(0,1fr)] md:p-6">
+        <div className="md:-mt-24">
+          {coverUrl ? (
+            <img
+              alt=""
+              className="aspect-[2/3] w-36 rounded-lg border bg-muted object-cover shadow-sm md:w-48"
+              src={coverUrl}
+              onError={hideBrokenImage}
+            />
+          ) : (
+            <div className="aspect-[2/3] w-36 rounded-lg border bg-muted md:w-48" />
+          )}
+        </div>
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-2xl font-semibold leading-tight">{anime.displayTitle}</h2>
+              {loading ? <Badge variant="secondary">Refreshing</Badge> : null}
+            </div>
+            {anime.title.native ? (
+              <p className="text-sm text-muted-foreground">{anime.title.native}</p>
+            ) : null}
+            {anime.description ? (
+              <p className="max-w-4xl whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                {anime.description}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {anime.format ? <Badge variant="outline">{anime.format}</Badge> : null}
+            {anime.status ? <Badge variant="outline">{formatToken(anime.status)}</Badge> : null}
+            {anime.episodes ? <Badge variant="outline">{anime.episodes} episodes</Badge> : null}
+            {anime.durationMinutes ? (
+              <Badge variant="outline">{anime.durationMinutes} min</Badge>
+            ) : null}
+            {anime.seasonYear ? <Badge variant="outline">{anime.seasonYear}</Badge> : null}
+            {anime.averageScore ? <Badge variant="outline">{anime.averageScore}% score</Badge> : null}
+          </div>
+
+          {anime.genres.length ? (
+            <div className="flex flex-wrap gap-2">
+              {anime.genres.map((genre) => (
+                <Badge key={genre} variant="secondary">
+                  {genre}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+
+          {details ? <AnimeDetailExtras details={details} /> : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AnimeDetailExtras({ details }: { details: AnimeMetadataDetails }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <InfoItem label="Studios" value={details.studios.map((studio) => studio.name).join(', ')} />
+        <InfoItem label="Source" value={formatToken(details.source)} />
+        <InfoItem label="Start" value={formatDate(details.startDate)} />
+        <InfoItem label="AniList" value={details.siteUrl ? `#${details.id}` : undefined} />
+      </div>
+
+      {details.tags.length ? (
+        <div className="flex flex-wrap gap-2">
+          {details.tags.slice(0, 8).map((tag) => (
+            <Badge key={tag.name} variant="outline">
+              {tag.name}
+            </Badge>
+          ))}
+        </div>
+      ) : null}
+
+      {details.characters.length ? (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">Characters</h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {details.characters.slice(0, 6).map((character) => (
+              <div className="flex min-w-0 items-center gap-3 rounded-lg border p-2" key={character.id}>
+                {character.imageUrl ? (
+                  <img
+                    alt=""
+                    className="h-14 w-10 rounded-md border object-cover"
+                    src={character.imageUrl}
+                    onError={hideBrokenImage}
+                  />
+                ) : null}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{character.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[formatToken(character.role), character.voiceActors[0]?.name]
+                      .filter(Boolean)
+                      .join(' / ')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value?: string }) {
+  if (!value) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-lg border p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate font-medium">{value}</p>
+    </div>
+  );
+}
+
 function MediaResult({
   item,
   selected,
@@ -239,6 +485,7 @@ function MediaResult({
             alt=""
             className="h-20 w-14 rounded-md border object-cover"
             src={item.posterUrl}
+            onError={hideBrokenImage}
           />
         ) : null}
         <div className="min-w-0 flex-1">
@@ -290,10 +537,36 @@ function ResultSkeleton({ compact = false }: { compact?: boolean }) {
 function ErrorText({ error }: { error: Error }) {
   return (
     <>
-      <Separator />
+      <Separator className="my-3" />
       <p className="text-sm text-destructive">{error.message}</p>
     </>
   );
+}
+
+function hasDetails(
+  anime: AnimeMetadataSearchResult | AnimeMetadataDetails,
+): anime is AnimeMetadataDetails {
+  return 'characters' in anime;
+}
+
+function hideBrokenImage(event: SyntheticEvent<HTMLImageElement>) {
+  event.currentTarget.style.display = 'none';
+}
+
+function formatToken(value?: string) {
+  return value
+    ?.toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function formatDate(date?: { year?: number; month?: number; day?: number }) {
+  if (!date?.year) {
+    return undefined;
+  }
+
+  return [date.year, date.month, date.day].filter(Boolean).join('-');
 }
 
 export default App;

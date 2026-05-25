@@ -65,12 +65,16 @@ Frontend:
 - Current shadcn preset is `b5ckPXiR0` (`radix-vega`, zinc base, teal theme, Inter font, lucide icons).
 - Do not add fancy gradients, decorative effects, or bespoke visual styling unless the user explicitly asks.
 - If a custom UI component is needed, compose it from shadcn components and simple `div`/layout elements.
+- AniList drives anime autocomplete and canonical anime metadata in the UI.
+- After an AniList anime is selected, use its canonical romaji/English title to search source providers such as WitAnime.
+- Prefer AniList cover/banner images over source-provider images for primary media artwork.
 
 Backend:
 
 - Use NestJS.
 - Use PostgreSQL.
 - Backend owns scraping/parsing, provider adapters, host resolvers, download queue, filesystem writes, persistence, and settings.
+- Backend also owns metadata provider adapters such as AniList.
 
 Monorepo:
 
@@ -91,11 +95,23 @@ Local database:
 - Stop it with `bun run db:stop`.
 - The data directory lives under `.local/postgres` and must stay untracked.
 
+Portless:
+
+- Portless is installed as a dev dependency and configured in `portless.json`.
+- Frontend stable name: `elysium`.
+- Backend stable name: `api.elysium`.
+- Use `bun run dev:portless` to run both apps through Portless from the monorepo root.
+- Use `bun run web:dev:portless` or `bun run api:dev:portless` for one app.
+- Keep the existing port-number scripts (`bun run web:dev`, `bun run api:dev`) working as fallback.
+
 Provider smoke tests:
 
 - WitAnime CLI smoke test:
   - `bun run --filter @elysium/api smoke:witanime -- Akane-banashi 5`
 - This should search WitAnime, select the media, decode episodes, decode download options, and print the structured provider URLs.
+- AniList CLI smoke test:
+  - `bun run --filter @elysium/api smoke:anilist -- Akane-banashi`
+- This should search AniList, fetch detailed anime metadata, and print characters.
 
 Linting:
 
@@ -106,10 +122,12 @@ Linting:
 Architecture rule:
 
 ```text
+Frontend UI -> NestJS API -> Metadata provider adapters
 Frontend UI -> NestJS API -> Source provider adapters -> Host provider resolvers -> Download engine -> Local files
 ```
 
 Avoid putting provider scraping or host-resolution logic in the frontend.
+Avoid calling AniList directly from the frontend; use the local NestJS metadata API.
 
 ## Product Direction
 

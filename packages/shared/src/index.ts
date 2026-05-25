@@ -1,5 +1,7 @@
 export type SourceProviderId = "witanime" | (string & {});
 
+export type MetadataProviderId = "anilist" | (string & {});
+
 export type HostProviderId =
   | "mediafire"
   | "gofile"
@@ -27,6 +29,112 @@ export interface SourceProvider {
   name: string;
   baseUrl: string;
   enabled: boolean;
+}
+
+export interface MetadataProvider {
+  id: MetadataProviderId;
+  name: string;
+  baseUrl: string;
+  enabled: boolean;
+}
+
+export interface AnimeTitle {
+  romaji?: string;
+  english?: string;
+  native?: string;
+  userPreferred: string;
+}
+
+export interface AnimeImage {
+  extraLarge?: string;
+  large?: string;
+  medium?: string;
+  color?: string;
+}
+
+export interface FuzzyDate {
+  year?: number;
+  month?: number;
+  day?: number;
+}
+
+export interface AnimeMetadataSearchResult {
+  metadataProvider: MetadataProviderId;
+  id: number;
+  idMal?: number;
+  title: AnimeTitle;
+  displayTitle: string;
+  sourceSearchTitle: string;
+  description?: string;
+  coverImage?: AnimeImage;
+  bannerImage?: string;
+  episodes?: number;
+  durationMinutes?: number;
+  format?: string;
+  status?: string;
+  season?: string;
+  seasonYear?: number;
+  startDate?: FuzzyDate;
+  genres: string[];
+  synonyms: string[];
+  averageScore?: number;
+  popularity?: number;
+  siteUrl?: string;
+}
+
+export interface AnimeCharacter {
+  id: number;
+  name: string;
+  nativeName?: string;
+  role?: string;
+  imageUrl?: string;
+  siteUrl?: string;
+  voiceActors: AnimeVoiceActor[];
+}
+
+export interface AnimeVoiceActor {
+  id: number;
+  name: string;
+  imageUrl?: string;
+  siteUrl?: string;
+}
+
+export interface AnimeStudio {
+  id: number;
+  name: string;
+  siteUrl?: string;
+}
+
+export interface AnimeTag {
+  name: string;
+  rank?: number;
+  spoiler?: boolean;
+}
+
+export interface AnimeTrailer {
+  id?: string;
+  site?: string;
+  siteUrl?: string;
+  thumbnail?: string;
+}
+
+export interface NextAiringEpisode {
+  airingAt: string;
+  episode: number;
+  timeUntilAiringSeconds: number;
+}
+
+export interface AnimeMetadataDetails extends AnimeMetadataSearchResult {
+  meanScore?: number;
+  favourites?: number;
+  source?: string;
+  countryOfOrigin?: string;
+  endDate?: FuzzyDate;
+  studios: AnimeStudio[];
+  tags: AnimeTag[];
+  characters: AnimeCharacter[];
+  trailer?: AnimeTrailer;
+  nextAiringEpisode?: NextAiringEpisode;
 }
 
 export interface MediaSearchResult {
