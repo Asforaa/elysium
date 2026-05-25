@@ -71,6 +71,8 @@ Frontend:
 - AniList `PREQUEL` and `SEQUEL` relations should render as `Previous` and `Next` anime cards between the metadata panel and source results.
 - Selecting a related AniList anime must flow through the same source-provider search path as autocomplete selection.
 - Use TanStack Router for frontend routes. Anime detail pages live at `/anime/$animeId/$slug`.
+- Episode playback pages live at `/anime/$animeId/$slug/episode/$episodeNumber`; do not introduce a generic `/watch` route.
+- Downloads live at `/downloads` and should show anime metadata objects with attached downloaded episodes, not only raw file rows.
 - Treat the AniList numeric ID as the route source of truth. The slug is only for readable URLs and should not be required for lookups.
 - Autocomplete selection and related-anime selection should navigate to the anime route, then let the route-driven page fetch AniList metadata and source-adapter matches.
 - Run `bun run --filter @elysium/web routes:generate` when route files change, and commit the generated `src/routeTree.gen.ts`.
@@ -90,6 +92,9 @@ Backend:
 - Download jobs are persisted in PostgreSQL by the backend `download-jobs` module.
 - Use `download_job_attempts` for retries and failure history. Retrying a failed/cancelled job should create a new attempt under the same job, not a random unrelated job.
 - Completed downloads should seed `local_media_files` so the local library can attach files to AniList/source/episode context.
+- Completed downloads should be grouped by anime through `/library/anime` and streamed through `/library/files/:id/stream` with HTTP range support.
+- Playback progress belongs in the backend `playback` module and should support both local file IDs and source episode identities for continue-watching features.
+- Use ReactPlayer for local downloaded files for now. Source-provider streaming hosts should be attached as iframe embeds from the provider adapter because they are already external player pages.
 - Use the local backend downloader for active download execution. It should try concurrent HTTP range downloads when supported, fall back to a normal stream when not, and keep Mega on its custom local `megajs` path.
 - Use `ELYSIUM_DOWNLOAD_DIR` for the local download destination and `ELYSIUM_DOWNLOAD_CONNECTIONS` for segmented HTTP concurrency.
 
@@ -158,11 +163,12 @@ Core flow:
 3. Show media details.
 4. Show episodes/media pieces.
 5. Open an episode/media piece.
-6. Extract all public download options.
-7. Group options by quality and host provider.
-8. Resolve a selected provider internally.
-9. Start a local download with one click.
-10. Track progress, errors, retries, destination, and history.
+6. Extract public source-provider streaming embeds for playback when available.
+7. Extract all public download options.
+8. Group options by quality and host provider.
+9. Resolve a selected provider internally.
+10. Start a local download with one click.
+11. Track progress, errors, retries, destination, playback progress, and history.
 
 Long-term source strategy:
 
@@ -205,6 +211,9 @@ Episode page flow:
   - `https://witanime.life/episode/akane-banashi-%d8%a7%d9%84%d8%ad%d9%84%d9%82%d8%a9-5/`
 - Page title observed:
   - `انمي Akane-banashi الحلقة 5 مترجمة اون لاين - WitAnime`
+- Streaming server buttons are exposed under `#episode-servers .server-link`.
+- Streaming embed URLs are encoded in `_zG` with decode config `_zH`; decode those in the backend adapter and attach them as `StreamingOption[]`.
+- Observed streaming labels include `yonaplay - multi`, `videa`, `streamwish`, `mp4upload - SD`, `videa - FHD`, and `streamwish - FHD`.
 - Download section heading:
   - `روابط تحميل الحلقة`
 - Quality groups observed:
@@ -271,6 +280,7 @@ interface SourceProviderAdapter {
   getMediaDetails(mediaUrl: string): Promise<MediaDetails>;
   getEpisodes(mediaUrl: string): Promise<EpisodeSummary[]>;
   getDownloadOptions(episodeUrl: string): Promise<DownloadOption[]>;
+  getStreamingOptions?(episodeUrl: string): Promise<StreamingOption[]>;
 }
 ```
 

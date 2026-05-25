@@ -2,14 +2,18 @@ import type {
   AnimeMetadataDetails,
   AnimeMetadataSearchSort,
   AnimeMetadataSearchResult,
+  DownloadedAnime,
   DownloadMediaContext,
   DownloadJob,
   DownloadOption,
   EpisodeSummary,
   LocalMediaFile,
   MediaSearchResult,
+  PlaybackProgress,
+  SavePlaybackProgressRequest,
   SourceProvider,
   SourceProviderId,
+  StreamingOption,
 } from '@elysium/shared';
 
 const API_BASE_URL = resolveApiBaseUrl();
@@ -85,6 +89,13 @@ export async function getDownloadOptions(
   return getJson(`/providers/${providerId}/download-options?url=${encodeURIComponent(episodeUrl)}`);
 }
 
+export async function getStreamingOptions(
+  providerId: SourceProviderId,
+  episodeUrl: string,
+): Promise<StreamingOption[]> {
+  return getJson(`/providers/${providerId}/streaming-options?url=${encodeURIComponent(episodeUrl)}`);
+}
+
 export async function listDownloadJobs(): Promise<DownloadJob[]> {
   return getJson('/downloads');
 }
@@ -104,6 +115,40 @@ export async function listLocalMediaFiles(): Promise<LocalMediaFile[]> {
   return getJson('/library/files');
 }
 
+export async function listDownloadedAnime(): Promise<DownloadedAnime[]> {
+  return getJson('/library/anime');
+}
+
+export function getLocalMediaStreamUrl(id: string): string {
+  return `${API_BASE_URL}/library/files/${encodeURIComponent(id)}/stream`;
+}
+
+export async function getPlaybackProgress(
+  query: Partial<SavePlaybackProgressRequest>,
+): Promise<PlaybackProgress | undefined> {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null) {
+      params.set(key, String(value));
+    }
+  }
+
+  return (await getJson<PlaybackProgress | null>(
+    `/playback/progress?${params.toString()}`,
+  )) ?? undefined;
+}
+
+export async function savePlaybackProgress(
+  progress: SavePlaybackProgressRequest,
+): Promise<PlaybackProgress> {
+  return sendJson('/playback/progress', progress);
+}
+
+export async function listContinueWatching(): Promise<PlaybackProgress[]> {
+  return getJson('/playback/continue-watching');
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     credentials: 'include',
@@ -113,7 +158,9 @@ async function getJson<T>(path: string): Promise<T> {
     throw new Error(await getApiErrorMessage(response));
   }
 
-  return response.json() as Promise<T>;
+  const text = await response.text();
+
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 async function sendJson<T>(path: string, body: unknown): Promise<T> {

@@ -42,4 +42,14 @@ export class SourceProvidersService {
 
     return adapter;
   }
+
+  async getStreamingOptions(providerId: SourceProviderId, episodeUrl: string) {
+    const adapter = this.getAdapter(providerId);
+
+    if (!adapter.getStreamingOptions) {
+      return [];
+    }
+
+    return adapter.getStreamingOptions(episodeUrl);
+  }
 }

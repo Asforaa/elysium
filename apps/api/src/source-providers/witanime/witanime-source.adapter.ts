@@ -9,6 +9,7 @@ import type {
   MediaSearchResult,
   MediaStatus,
   SourceProvider,
+  StreamingOption,
 } from '@elysium/shared';
 import type { SourceProviderAdapter } from '../source-provider-adapter';
 
@@ -32,8 +33,14 @@ interface WitAnimeEncodedDownloads {
   total: number;
 }
 
+interface WitAnimeStreamingConfig {
+  d: number[];
+  k: string;
+}
+
 const USER_AGENT =
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Elysium/0.1';
+const WITANIME_YONAPLAY_API_KEY = '23a97133-caf3-4eb4-9466-93d0a4ff8198';
 
 export class WitAnimeSourceAdapter implements SourceProviderAdapter {
   readonly provider: SourceProvider = {
@@ -194,6 +201,44 @@ export class WitAnimeSourceAdapter implements SourceProviderAdapter {
     return options;
   }
 
+  async getStreamingOptions(episodeUrl: string): Promise<StreamingOption[]> {
+    const absoluteUrl = toAbsoluteUrl(episodeUrl, this.provider.baseUrl);
+    const html = await this.fetchText(absoluteUrl);
+    const $ = load(html);
+    const resources = decodeStreamingResources(html);
+    const episodeTitle = normalizeText(
+      $('.second-section h3, h3').first().text(),
+    );
+    const episodeNumber = episodeTitle.match(/الحلقة\s+(\d+)/)?.[1];
+    const mediaTitle =
+      episodeTitle.replace(/\s*الحلقة\s+\d+.*/, '').trim() || undefined;
+    const options: StreamingOption[] = [];
+
+    $('#episode-servers .server-link').each((_, linkElement) => {
+      const link = $(linkElement);
+      const serverId = Number(link.attr('data-server-id'));
+      const providerLabel = normalizeText(link.text());
+      const embedUrl = resources.get(serverId);
+
+      if (!providerLabel || !embedUrl) {
+        return;
+      }
+
+      options.push({
+        sourceProvider: this.provider.id,
+        mediaTitle,
+        episodeTitle,
+        episodeNumber,
+        providerLabel,
+        hostProvider: normalizeStreamingHostProvider(providerLabel, embedUrl),
+        embedUrl,
+        sourcePageUrl: absoluteUrl,
+      });
+    });
+
+    return options;
+  }
+
   private async fetchText(url: string): Promise<string> {
     const response = await fetch(url, {
       headers: {
@@ -268,6 +313,39 @@ function decodeDownloadResources(html: string): Map<number, string> {
   return resources;
 }
 
+function decodeStreamingResources(html: string): Map<number, string> {
+  const rawResources = parseBase64JsonVariable<string[]>(html, '_zG');
+  const configs = parseBase64JsonVariable<WitAnimeStreamingConfig[]>(html, '_zH');
+  const resources = new Map<number, string>();
+
+  rawResources.forEach((rawResource, index) => {
+    const config = configs[index];
+
+    if (!config) {
+      return;
+    }
+
+    const reversed = rawResource
+      .split('')
+      .reverse()
+      .join('')
+      .replace(/[^A-Za-z0-9+/=]/gu, '');
+    const indexKey = Buffer.from(config.k, 'base64').toString('utf8');
+    const offset = config.d[Number.parseInt(indexKey, 10)];
+    const decoded = Buffer.from(reversed, 'base64')
+      .toString('utf8')
+      .slice(0, offset ? -offset : undefined);
+
+    if (!decoded) {
+      return;
+    }
+
+    resources.set(index, appendYonaplayApiKey(decoded));
+  });
+
+  return resources;
+}
+
 function parseEncodedDownloads(html: string): WitAnimeEncodedDownloads {
   const m = parseJsonVariable<WitAnimeEncodedDownloads['m']>(html, '_m');
   const sequences = parseJsonVariable<string[]>(html, '_s');
@@ -291,6 +369,16 @@ function parseJsonVariable<T>(html: string, variableName: string): T {
   );
 
   return JSON.parse(value) as T;
+}
+
+function parseBase64JsonVariable<T>(html: string, variableName: string): T {
+  const value = matchRequired(
+    html,
+    new RegExp(`var\\s+${escapeRegExp(variableName)}\\s*=\\s*"([^"]+)";`, 'u'),
+    variableName,
+  );
+
+  return JSON.parse(Buffer.from(value, 'base64').toString('utf8')) as T;
 }
 
 function xorHex(raw: string, secret: string): string {
@@ -393,6 +481,44 @@ function normalizeHostProvider(label: string): HostProviderId {
   }
 
   return normalized;
+}
+
+function normalizeStreamingHostProvider(
+  label: string,
+  embedUrl: string,
+): HostProviderId {
+  const normalized = normalizeText(label).toLowerCase();
+  const hostname = new URL(embedUrl).hostname.replace(/^www\./u, '');
+
+  if (normalized.includes('yonaplay') || hostname.includes('yonaplay')) {
+    return 'yonaplay';
+  }
+
+  if (normalized.includes('videa') || hostname.includes('videa')) {
+    return 'videa';
+  }
+
+  if (
+    normalized.includes('streamwish') ||
+    hostname.includes('streamwish') ||
+    hostname.includes('hgcloud')
+  ) {
+    return 'streamwish';
+  }
+
+  if (normalized.includes('mp4upload') || hostname.includes('mp4upload')) {
+    return 'mp4upload';
+  }
+
+  return hostname || normalized;
+}
+
+function appendYonaplayApiKey(url: string) {
+  if (!/^https:\/\/yonaplay\.net\/embed\.php\?id=\d+$/u.test(url)) {
+    return url;
+  }
+
+  return `${url}&apiKey=${WITANIME_YONAPLAY_API_KEY}`;
 }
 
 function normalizeText(value: string | undefined): string {

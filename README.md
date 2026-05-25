@@ -1,5 +1,9 @@
 # Elysium
 
+<p align="center">
+  <img src="./branding/splash.png" alt="Elysium splash" width="100%">
+</p>
+
 Elysium is my private media center: a local-first place to import, organize, watch, and track movies, series, anime, episodes, downloads, and playback progress.
 
 Elysium is a private, selfhostable local media download hub for personal use.
@@ -54,6 +58,8 @@ Frontend:
 - Use TanStack Table where dense provider/download/queue tables make sense.
 - Keep the UI as a client web app talking to the local API.
 - Anime detail URLs use TanStack Router at `/anime/$animeId/$slug`.
+- Episode playback URLs use TanStack Router at `/anime/$animeId/$slug/episode/$episodeNumber`.
+- `/downloads` shows completed local files grouped by anime metadata instead of as loose filenames.
 - The AniList numeric ID is the canonical route parameter; the slug is cosmetic and human-readable.
 - Direct-loading an anime URL should fetch AniList metadata by ID, then search source adapters from that metadata title.
 
@@ -63,6 +69,8 @@ Backend:
 - PostgreSQL.
 - Backend owns metadata adapters, source provider adapters, link resolution, download queue, download execution, persistence, and filesystem interaction.
 - Auth users and sessions are persisted in PostgreSQL so local accounts survive backend restarts.
+- Playback progress is a backend-owned persisted API so continue-watching features can be built without changing the provider adapters.
+- Local files stream through the backend with HTTP range support so browser players can seek downloaded media.
 
 Metadata:
 
@@ -137,6 +145,10 @@ The app creates persisted download jobs through the local API:
 - `GET /downloads/:id` reads a single job.
 - `POST /downloads/:id/retry` creates a new attempt under the same persisted job.
 - `GET /library/files` lists completed local media files seeded from successful downloads.
+- `GET /library/anime` lists completed downloads grouped by anime metadata.
+- `GET /library/files/:id/stream` streams a downloaded file with byte-range support.
+- `POST /playback/progress` saves local or source-episode playback progress.
+- `GET /playback/continue-watching` lists partially watched entries for a future resume UI.
 
 Download jobs are persisted in PostgreSQL. The backend stores the original
 download option, optional AniList/media context, resolved file metadata,
@@ -182,6 +194,7 @@ Likely entities:
 - Source provider: the main site being searched, such as WitAnime.
 - Media item: an anime/show/movie returned by a source provider.
 - Episode/media piece: a downloadable/watchable unit under a media item.
+- Streaming option: an embeddable source-player URL extracted from a provider episode page.
 - Quality group: SD, HD, FHD, or other provider-specific labels.
 - Host provider: MediaFire, GoFile, Workupload, mp4upload, MEGA, Google Drive, etc.
 - Download option: a single combination of source provider, episode, quality, and host provider.
@@ -203,6 +216,8 @@ Provider discovery:
 - Show episodes/media pieces.
 - Open an episode/media piece.
 - Extract all download options grouped by quality.
+- Extract streaming embed options where the source provider exposes public episode players.
+- Prefer local downloaded playback when the episode file exists, otherwise show the source-provider embed.
 - Normalize provider names, including typos from the source site.
 
 Download UX:
@@ -211,8 +226,15 @@ Download UX:
 - Show selected source provider, quality, host provider, file name, status, speed, ETA, and destination.
 - Retry failed downloads.
 - Preserve download history.
+- Show downloaded anime under `/downloads` with the anime metadata and saved episodes attached.
 - Allow choosing default download directory later.
 - Prefer internal provider resolution over opening external pages.
+
+Playback UX:
+
+- Use ReactPlayer for local downloaded file playback in the web app.
+- Render source-provider streaming hosts as iframes because those hosts are already full embed/player pages.
+- Store playback progress through the backend for continue-watching features such as partially watched files, progress percentage, and quick resume.
 
 Provider adapter system:
 
@@ -323,6 +345,7 @@ interface SourceProviderAdapter {
   getMediaDetails(mediaUrl: string): Promise<MediaDetails>;
   getEpisodes(mediaUrl: string): Promise<EpisodeSummary[]>;
   getDownloadOptions(episodeUrl: string): Promise<DownloadOption[]>;
+  getStreamingOptions?(episodeUrl: string): Promise<StreamingOption[]>;
 }
 ```
 
@@ -332,6 +355,7 @@ For WitAnime:
 - `getMediaDetails(mediaUrl)` can parse the anime detail page metadata.
 - `getEpisodes(mediaUrl)` can decode `encodedEpisodeData` from the anime page.
 - `getDownloadOptions(episodeUrl)` can parse quality groups and decode the `px9.js` resources by `data-index`.
+- `getStreamingOptions(episodeUrl)` can parse `#episode-servers .server-link` and decode `_zG` / `_zH` embed resources.
 
 ## Host Resolver Notes
 

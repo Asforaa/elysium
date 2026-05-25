@@ -73,4 +73,16 @@ export class SourceProvidersController {
 
     return this.sourceProviders.getAdapter(providerId).getDownloadOptions(url);
   }
+
+  @Get(':providerId/streaming-options')
+  getStreamingOptions(
+    @Param('providerId') providerId: SourceProviderId,
+    @Query('url') url?: string,
+  ) {
+    if (!url?.trim()) {
+      throw new BadRequestException('Missing episode URL');
+    }
+
+    return this.sourceProviders.getStreamingOptions(providerId, url);
+  }
 }

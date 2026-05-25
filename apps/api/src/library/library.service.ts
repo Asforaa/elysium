@@ -8,4 +8,12 @@ export class LibraryService {
   listFiles() {
     return this.downloads.listLocalMediaFiles();
   }
+
+  listAnime() {
+    return this.downloads.listDownloadedAnime();
+  }
+
+  getFile(id: string) {
+    return this.downloads.getLocalMediaFile(id);
+  }
 }

@@ -4,6 +4,7 @@ import type {
   MediaDetails,
   MediaSearchResult,
   SourceProvider,
+  StreamingOption,
 } from '@elysium/shared';
 
 export interface SourceProviderAdapter {
@@ -12,4 +13,5 @@ export interface SourceProviderAdapter {
   getMediaDetails(mediaUrl: string): Promise<MediaDetails>;
   getEpisodes(mediaUrl: string): Promise<EpisodeSummary[]>;
   getDownloadOptions(episodeUrl: string): Promise<DownloadOption[]>;
+  getStreamingOptions?(episodeUrl: string): Promise<StreamingOption[]>;
 }

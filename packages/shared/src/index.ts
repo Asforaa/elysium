@@ -199,6 +199,17 @@ export interface EpisodeSummary {
   airedAt?: string;
 }
 
+export interface StreamingOption {
+  sourceProvider: SourceProviderId;
+  mediaTitle?: string;
+  episodeTitle?: string;
+  episodeNumber?: string;
+  providerLabel: string;
+  hostProvider: HostProviderId;
+  embedUrl: string;
+  sourcePageUrl: string;
+}
+
 export interface DownloadOption {
   sourceProvider: SourceProviderId;
   mediaTitle?: string;
@@ -265,9 +276,13 @@ export interface DownloadJob {
 export interface LocalMediaFile {
   id: string;
   downloadJobId: string;
+  mediaContext?: DownloadMediaContext;
   metadataProvider?: MetadataProviderId;
   metadataId?: number;
   displayTitle?: string;
+  sourceSearchTitle?: string;
+  coverImageUrl?: string;
+  bannerImageUrl?: string;
   sourceProvider?: SourceProviderId;
   sourceMediaTitle?: string;
   sourceMediaUrl?: string;
@@ -282,18 +297,52 @@ export interface LocalMediaFile {
   updatedAt: string;
 }
 
+export interface DownloadedAnime {
+  key: string;
+  metadataProvider?: MetadataProviderId;
+  metadataId?: number;
+  displayTitle: string;
+  sourceSearchTitle?: string;
+  coverImageUrl?: string;
+  bannerImageUrl?: string;
+  sourceProvider?: SourceProviderId;
+  sourceMediaTitle?: string;
+  sourceMediaUrl?: string;
+  files: LocalMediaFile[];
+  updatedAt: string;
+}
+
 export interface PlaybackProgress {
   id: string;
+  localMediaFileId?: string;
+  metadataProvider?: MetadataProviderId;
+  metadataId?: number;
   sourceProvider?: SourceProviderId;
-  mediaTitle: string;
-  mediaUrl?: string;
+  sourceMediaUrl?: string;
+  episodeUrl?: string;
+  mediaTitle?: string;
   episodeTitle?: string;
   episodeNumber?: string;
-  filePath?: string;
   positionSeconds: number;
   durationSeconds?: number;
   completed: boolean;
+  createdAt: string;
   updatedAt: string;
+}
+
+export interface SavePlaybackProgressRequest {
+  localMediaFileId?: string;
+  metadataProvider?: MetadataProviderId;
+  metadataId?: number;
+  sourceProvider?: SourceProviderId;
+  sourceMediaUrl?: string;
+  episodeUrl?: string;
+  mediaTitle?: string;
+  episodeTitle?: string;
+  episodeNumber?: string;
+  positionSeconds: number;
+  durationSeconds?: number;
+  completed?: boolean;
 }
 
 export interface ProviderSmokeResult {

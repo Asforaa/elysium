@@ -6,6 +6,7 @@ import { DownloadJobsModule } from './download-jobs/download-jobs.module';
 import { HealthModule } from './health/health.module';
 import { LibraryModule } from './library/library.module';
 import { MetadataProvidersModule } from './metadata-providers/metadata-providers.module';
+import { PlaybackModule } from './playback/playback.module';
 import { SourceProvidersModule } from './source-providers/source-providers.module';
 
 @Module({
@@ -15,6 +16,7 @@ import { SourceProvidersModule } from './source-providers/source-providers.modul
     HealthModule,
     LibraryModule,
     MetadataProvidersModule,
+    PlaybackModule,
     SourceProvidersModule,
   ],
   controllers: [AppController],

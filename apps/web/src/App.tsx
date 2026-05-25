@@ -7,6 +7,7 @@ import type {
 } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import ReactPlayer from 'react-player';
 import {
   Clapperboard,
   ChevronDown,
@@ -32,18 +33,23 @@ import type {
   AnimeMetadataSearchResult,
   AnimeMetadataSearchSort,
   AnimeRelation,
+  DownloadedAnime,
   DownloadMediaContext,
   DownloadJob,
   DownloadOption,
   EpisodeSummary,
   LocalMediaFile,
   MediaSearchResult,
+  StreamingOption,
 } from '@elysium/shared';
 import {
   getAnimeMetadata,
   getAuthSession,
   getDownloadOptions,
   getEpisodes,
+  getLocalMediaStreamUrl,
+  getStreamingOptions,
+  listDownloadedAnime,
   listLocalMediaFiles,
   listDownloadJobs,
   retryDownload,
@@ -120,6 +126,8 @@ const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
 const EMPTY_EPISODES: EpisodeSummary[] = [];
 const EMPTY_DOWNLOAD_JOBS: DownloadJob[] = [];
 const EMPTY_LOCAL_MEDIA_FILES: LocalMediaFile[] = [];
+const EMPTY_DOWNLOADED_ANIME: DownloadedAnime[] = [];
+const EMPTY_STREAMING_OPTIONS: StreamingOption[] = [];
 const PROFILE_PHOTO_SIZE = 256;
 const PROFILE_PHOTO_QUALITY = 0.82;
 const MAX_PROFILE_PHOTO_SOURCE_BYTES = 10 * 1024 * 1024;
@@ -166,12 +174,16 @@ function App({
   animeSearchQuery: routeAnimeSearchQuery = '',
   animeSearchRoute = false,
   animeSearchSort: routeAnimeSearchSort = DEFAULT_ANIME_SEARCH_SORT,
+  downloadsRoute = false,
   routeAnimeId,
+  routeEpisodeNumber,
 }: {
   animeSearchQuery?: string;
   animeSearchRoute?: boolean;
   animeSearchSort?: AnimeMetadataSearchSort;
+  downloadsRoute?: boolean;
   routeAnimeId?: number;
+  routeEpisodeNumber?: string;
   routeAnimeSlug?: string;
 }) {
   const navigate = useNavigate();
@@ -237,10 +249,20 @@ function App({
   });
 
   const episodes = episodesQuery.data ?? EMPTY_EPISODES;
-  const selectedEpisode = useMemo(
-    () => episodes.find((episode) => episode.url === selectedEpisodeUrl) ?? episodes.at(-1),
-    [episodes, selectedEpisodeUrl],
-  );
+  const selectedEpisode = useMemo(() => {
+    if (routeEpisodeNumber) {
+      return episodes.find(
+        (episode) =>
+          normalizeEpisodeNumber(episode.number) ===
+          normalizeEpisodeNumber(routeEpisodeNumber),
+      );
+    }
+
+    return (
+      episodes.find((episode) => episode.url === selectedEpisodeUrl) ??
+      episodes.at(-1)
+    );
+  }, [episodes, selectedEpisodeUrl, routeEpisodeNumber]);
 
   const downloadOptionsQuery = useQuery({
     queryKey: ['download-options', selectedEpisode?.sourceProvider, selectedEpisode?.url],
@@ -255,6 +277,23 @@ function App({
   });
 
   const downloadOptions = downloadOptionsQuery.data ?? [];
+  const streamingOptionsQuery = useQuery({
+    queryKey: [
+      'streaming-options',
+      selectedEpisode?.sourceProvider,
+      selectedEpisode?.url,
+    ],
+    queryFn: () => {
+      if (!selectedEpisode) {
+        throw new Error('Missing selected episode');
+      }
+
+      return getStreamingOptions(selectedEpisode.sourceProvider, selectedEpisode.url);
+    },
+    enabled: Boolean(selectedEpisode?.url),
+  });
+  const streamingOptions =
+    streamingOptionsQuery.data ?? EMPTY_STREAMING_OPTIONS;
   const episodesLoading = searchQuery.isLoading || episodesQuery.isLoading;
   const downloadJobsQuery = useQuery({
     queryKey: ['downloads'],
@@ -269,6 +308,23 @@ function App({
   const downloadJobs = downloadJobsQuery.data ?? EMPTY_DOWNLOAD_JOBS;
   const localMediaFiles =
     localMediaFilesQuery.data ?? EMPTY_LOCAL_MEDIA_FILES;
+  const downloadedAnimeQuery = useQuery({
+    queryKey: ['library', 'anime'],
+    queryFn: listDownloadedAnime,
+    refetchInterval: 5_000,
+  });
+  const downloadedAnime =
+    downloadedAnimeQuery.data ?? EMPTY_DOWNLOADED_ANIME;
+  const selectedEpisodeFiles = useMemo(
+    () =>
+      getLocalFilesForEpisode({
+        animeId: selectedAnimeId,
+        episode: selectedEpisode,
+        episodeNumber: routeEpisodeNumber,
+        files: localMediaFiles,
+      }),
+    [localMediaFiles, routeEpisodeNumber, selectedAnimeId, selectedEpisode],
+  );
   const downloadJobByUrl = useMemo(() => {
     const jobs = new Map<string, DownloadJob>();
 
@@ -352,6 +408,23 @@ function App({
     });
   }
 
+  function handleEpisodeSelect(episode: EpisodeSummary) {
+    setSelectedEpisodeUrl(episode.url);
+
+    if (!selectedAnimeId || !animeDetails) {
+      return;
+    }
+
+    void navigate({
+      params: {
+        animeId: String(selectedAnimeId),
+        episodeNumber: normalizeEpisodeNumber(episode.number) ?? episode.number,
+        slug: toAnimeSlug(animeDetails),
+      },
+      to: '/anime/$animeId/$slug/episode/$episodeNumber',
+    });
+  }
+
   function handleDownload(option: DownloadOption, job?: DownloadJob) {
     if (job?.status === 'failed' || job?.status === 'cancelled') {
       retryDownloadMutation.mutate(job.id);
@@ -372,8 +445,15 @@ function App({
     <SidebarProvider>
       <ElysiumSidebar
         activeItem={
-          selectedAnimeId || showingAnimeSearch || animeSearchRoute ? 'Anime' : 'Home'
+          downloadsRoute
+            ? 'Downloads'
+            : selectedAnimeId || showingAnimeSearch || animeSearchRoute
+              ? 'Anime'
+              : 'Home'
         }
+        onDownloadsSelect={() => {
+          void navigate({ to: '/downloads' });
+        }}
         onHomeSelect={() => {
           void navigate({ to: '/home' });
         }}
@@ -395,7 +475,28 @@ function App({
               </div>
             </header>
 
-            {showingAnimeSearch ? (
+            {downloadsRoute ? (
+              <DownloadsPage
+                anime={downloadedAnime}
+                loading={downloadedAnimeQuery.isFetching}
+                onEpisodeSelect={(anime, file) => {
+                  if (!anime.metadataId || !file.episodeNumber) {
+                    return;
+                  }
+
+                  void navigate({
+                    params: {
+                      animeId: String(anime.metadataId),
+                      episodeNumber: file.episodeNumber,
+                      slug: slugFromTitle(anime.displayTitle),
+                    },
+                    to: '/anime/$animeId/$slug/episode/$episodeNumber',
+                  });
+                }}
+              />
+            ) : null}
+
+            {!downloadsRoute && showingAnimeSearch ? (
               <AnimeSearchResults
                 loading={animeMetadataSearchQuery.isFetching}
                 results={animeResults}
@@ -407,7 +508,7 @@ function App({
               />
             ) : null}
 
-            {!showingAnimeSearch && animeDetails ? (
+            {!downloadsRoute && !showingAnimeSearch && animeDetails ? (
               <AnimeDetailPanel
                 anime={animeDetails}
                 loading={animeDetailsQuery.isFetching}
@@ -415,7 +516,7 @@ function App({
               />
             ) : null}
 
-            {!showingAnimeSearch && animeDetails ? (
+            {!downloadsRoute && !showingAnimeSearch && animeDetails ? (
               <RelatedAnimeSection
                 relations={animeRelations}
                 selectedAnimeId={selectedAnimeId}
@@ -423,7 +524,21 @@ function App({
               />
             ) : null}
 
-            {!showingAnimeSearch && animeDetails ? (
+            {!downloadsRoute &&
+            !showingAnimeSearch &&
+            animeDetails &&
+            routeEpisodeNumber ? (
+              <EpisodeWatchPanel
+                anime={animeDetails}
+                episode={selectedEpisode}
+                localFiles={selectedEpisodeFiles}
+                routeEpisodeNumber={routeEpisodeNumber}
+                streamingOptions={streamingOptions}
+                streamingOptionsLoading={streamingOptionsQuery.isFetching}
+              />
+            ) : null}
+
+            {!downloadsRoute && !showingAnimeSearch && animeDetails ? (
               <>
                 <Card>
                   <CardHeader>
@@ -439,7 +554,7 @@ function App({
                             episode={episode}
                             key={episode.url}
                             selected={selectedEpisode?.url === episode.url}
-                            onSelect={() => setSelectedEpisodeUrl(episode.url)}
+                            onSelect={() => handleEpisodeSelect(episode)}
                           />
                         ))}
                       </div>
@@ -538,11 +653,18 @@ function App({
               </>
             ) : null}
 
-            <DownloadQueue jobs={downloadJobs} loading={downloadJobsQuery.isFetching} />
-            <LocalLibrary
-              files={localMediaFiles}
-              loading={localMediaFilesQuery.isFetching}
-            />
+            {!downloadsRoute ? (
+              <>
+                <DownloadQueue
+                  jobs={downloadJobs}
+                  loading={downloadJobsQuery.isFetching}
+                />
+                <LocalLibrary
+                  files={localMediaFiles}
+                  loading={localMediaFilesQuery.isFetching}
+                />
+              </>
+            ) : null}
           </div>
         </div>
         {focusedImage ? (
@@ -773,11 +895,202 @@ function AnimeSearchResultCard({
   );
 }
 
+function DownloadsPage({
+  anime,
+  loading,
+  onEpisodeSelect,
+}: {
+  anime: DownloadedAnime[];
+  loading: boolean;
+  onEpisodeSelect: (anime: DownloadedAnime, file: LocalMediaFile) => void;
+}) {
+  return (
+    <section className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold">Downloads</h1>
+        <p className="text-sm text-muted-foreground">
+          Downloaded anime grouped by local files.
+        </p>
+      </div>
+      {loading ? <ResultSkeleton /> : null}
+      {!loading && anime.length ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {anime.map((item) => (
+            <Card key={item.key}>
+              <CardContent className="grid gap-4 p-4 sm:grid-cols-[7rem_1fr]">
+                <div className="aspect-[2/3] overflow-hidden rounded-md bg-muted">
+                  {item.coverImageUrl ? (
+                    <img
+                      alt={`${item.displayTitle} cover`}
+                      className="h-full w-full object-cover"
+                      src={item.coverImageUrl}
+                      onError={hideBrokenImage}
+                    />
+                  ) : null}
+                </div>
+                <div className="min-w-0 space-y-3">
+                  <div>
+                    <h2 className="line-clamp-2 font-semibold">
+                      {item.displayTitle}
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      {item.files.length}{' '}
+                      {item.files.length === 1 ? 'episode' : 'episodes'} saved
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {item.files
+                      .toSorted(compareLocalMediaFiles)
+                      .map((file) => (
+                        <Button
+                          className="justify-between"
+                          disabled={!item.metadataId || !file.episodeNumber}
+                          key={file.id}
+                          type="button"
+                          variant="outline"
+                          onClick={() => onEpisodeSelect(item, file)}
+                        >
+                          <span>
+                            {file.episodeNumber
+                              ? `Episode ${file.episodeNumber}`
+                              : file.episodeTitle ?? 'Episode'}
+                          </span>
+                          <Badge variant="secondary">{file.quality}</Badge>
+                        </Button>
+                      ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : null}
+      {!loading && !anime.length ? (
+        <p className="text-sm text-muted-foreground">
+          Completed downloads will appear here grouped by anime.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function EpisodeWatchPanel({
+  anime,
+  episode,
+  localFiles,
+  routeEpisodeNumber,
+  streamingOptions,
+  streamingOptionsLoading,
+}: {
+  anime: AnimeMetadataDetails;
+  episode: EpisodeSummary | undefined;
+  localFiles: LocalMediaFile[];
+  routeEpisodeNumber?: string;
+  streamingOptions: StreamingOption[];
+  streamingOptionsLoading: boolean;
+}) {
+  const [selectedLocalFileId, setSelectedLocalFileId] = useState<string>();
+  const [selectedStreamIndex, setSelectedStreamIndex] = useState(0);
+  const selectedLocalFile =
+    localFiles.find((file) => file.id === selectedLocalFileId) ?? localFiles[0];
+  const selectedStream = streamingOptions[selectedStreamIndex] ?? streamingOptions[0];
+
+  useEffect(() => {
+    setSelectedLocalFileId(undefined);
+    setSelectedStreamIndex(0);
+  }, [episode?.url]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {anime.displayTitle}
+          {episode
+            ? ` - ${formatEpisodeTitle(episode)}`
+            : routeEpisodeNumber
+              ? ` - Episode ${routeEpisodeNumber}`
+              : ''}
+        </CardTitle>
+        <CardDescription>
+          {selectedLocalFile
+            ? 'Playing from your local library'
+            : 'Playing from source provider embed'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {selectedLocalFile ? (
+          <>
+            <div className="aspect-video overflow-hidden rounded-md bg-black">
+              <ReactPlayer
+                controls
+                height="100%"
+                src={getLocalMediaStreamUrl(selectedLocalFile.id)}
+                width="100%"
+              />
+            </div>
+            {localFiles.length > 1 ? (
+              <div className="flex flex-wrap gap-2">
+                {localFiles.map((file) => (
+                  <Button
+                    key={file.id}
+                    size="sm"
+                    type="button"
+                    variant={
+                      file.id === selectedLocalFile.id ? 'default' : 'outline'
+                    }
+                    onClick={() => setSelectedLocalFileId(file.id)}
+                  >
+                    {file.quality}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+          </>
+        ) : selectedStream ? (
+          <>
+            <div className="aspect-video overflow-hidden rounded-md bg-black">
+              <iframe
+                allow="fullscreen; encrypted-media; picture-in-picture"
+                allowFullScreen
+                className="h-full w-full border-0"
+                referrerPolicy="no-referrer-when-downgrade"
+                src={selectedStream.embedUrl}
+                title={`${anime.displayTitle} ${selectedStream.providerLabel}`}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {streamingOptions.map((option, index) => (
+                <Button
+                  key={`${option.providerLabel}-${option.embedUrl}`}
+                  size="sm"
+                  type="button"
+                  variant={index === selectedStreamIndex ? 'default' : 'outline'}
+                  onClick={() => setSelectedStreamIndex(index)}
+                >
+                  {option.providerLabel}
+                </Button>
+              ))}
+            </div>
+          </>
+        ) : streamingOptionsLoading ? (
+          <ResultSkeleton />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No streaming embeds found for this episode yet.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ElysiumSidebar({
   activeItem,
+  onDownloadsSelect,
   onHomeSelect,
 }: {
   activeItem: string;
+  onDownloadsSelect: () => void;
   onHomeSelect: () => void;
 }) {
   return (
@@ -807,12 +1120,14 @@ function ElysiumSidebar({
           activeItem={activeItem}
           items={MAIN_NAV_ITEMS}
           label="Home"
+          onDownloadsSelect={onDownloadsSelect}
           onHomeSelect={onHomeSelect}
         />
         <SidebarNavSection
           activeItem={activeItem}
           items={LIBRARY_NAV_ITEMS}
           label="Library"
+          onDownloadsSelect={onDownloadsSelect}
           onHomeSelect={onHomeSelect}
         />
       </SidebarContent>
@@ -825,11 +1140,13 @@ function SidebarNavSection({
   activeItem,
   items,
   label,
+  onDownloadsSelect,
   onHomeSelect,
 }: {
   activeItem: string;
   items: SidebarNavItem[];
   label: string;
+  onDownloadsSelect: () => void;
   onHomeSelect: () => void;
 }) {
   return (
@@ -848,7 +1165,11 @@ function SidebarNavSection({
                   isActive={active}
                   tooltip={item.title}
                   type="button"
-                  onClick={item.title === 'Home' ? onHomeSelect : undefined}
+                  onClick={getSidebarAction(
+                    item.title,
+                    onHomeSelect,
+                    onDownloadsSelect,
+                  )}
                 >
                   <Icon fill={active ? 'currentColor' : 'none'} />
                   <span>{item.title}</span>
@@ -2082,6 +2403,88 @@ function formatEpisodeTitle(episode: EpisodeSummary) {
   return episodeNumber ? `Episode ${episodeNumber}` : episode.title;
 }
 
+function getLocalFilesForEpisode({
+  animeId,
+  episode,
+  episodeNumber,
+  files,
+}: {
+  animeId?: number;
+  episode?: EpisodeSummary;
+  episodeNumber?: string;
+  files: LocalMediaFile[];
+}) {
+  const targetEpisodeNumber =
+    normalizeEpisodeNumber(episodeNumber) ??
+    normalizeEpisodeNumber(episode?.number) ??
+    normalizeEpisodeNumber(episode?.title);
+
+  if (!targetEpisodeNumber) {
+    return [];
+  }
+
+  return files
+    .filter((file) => {
+      if (animeId && file.metadataId && file.metadataId !== animeId) {
+        return false;
+      }
+
+      const fileEpisodeNumber =
+        normalizeEpisodeNumber(file.episodeNumber) ??
+        normalizeEpisodeNumber(file.episodeTitle);
+
+      if (fileEpisodeNumber !== targetEpisodeNumber) {
+        return false;
+      }
+
+      if (!episode) {
+        return true;
+      }
+
+      if (file.sourceProvider && file.sourceProvider !== episode.sourceProvider) {
+        return false;
+      }
+
+      return true;
+    })
+    .toSorted(compareLocalMediaFiles);
+}
+
+function compareLocalMediaFiles(first: LocalMediaFile, second: LocalMediaFile) {
+  const firstEpisode = Number(
+    normalizeEpisodeNumber(first.episodeNumber) ??
+      normalizeEpisodeNumber(first.episodeTitle) ??
+      0,
+  );
+  const secondEpisode = Number(
+    normalizeEpisodeNumber(second.episodeNumber) ??
+      normalizeEpisodeNumber(second.episodeTitle) ??
+      0,
+  );
+
+  if (firstEpisode !== secondEpisode) {
+    return firstEpisode - secondEpisode;
+  }
+
+  return (
+    getQualitySortRank(first.quality) - getQualitySortRank(second.quality) ||
+    first.filename.localeCompare(second.filename)
+  );
+}
+
+function getQualitySortRank(quality: string) {
+  switch (quality.toUpperCase()) {
+    case 'FHD':
+      return 0;
+    case 'HD':
+      return 1;
+    case 'SD':
+      return 2;
+    default:
+      return 3;
+  }
+}
+
 function normalizeEpisodeNumber(value?: string) {
   const normalized = value
     ?.replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
@@ -2090,10 +2493,30 @@ function normalizeEpisodeNumber(value?: string) {
   return normalized?.match(/\d+(?:\.\d+)?/)?.[0];
 }
 
+function getSidebarAction(
+  title: string,
+  onHomeSelect: () => void,
+  onDownloadsSelect: () => void,
+) {
+  if (title === 'Home') {
+    return onHomeSelect;
+  }
+
+  if (title === 'Downloads') {
+    return onDownloadsSelect;
+  }
+
+  return undefined;
+}
+
 function toAnimeSlug(
   anime: Pick<AnimeMetadataSearchResult, 'displayTitle' | 'sourceSearchTitle' | 'title'>,
 ) {
   const title = anime.sourceSearchTitle || anime.title.romaji || anime.displayTitle;
+  return slugFromTitle(title);
+}
+
+function slugFromTitle(title: string) {
   const slug = title
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')

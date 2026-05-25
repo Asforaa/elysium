@@ -227,4 +227,58 @@ const DATABASE_MIGRATIONS = [
       `,
     ],
   },
+  {
+    id: '003_library_playback_and_stream_context',
+    statements: [
+      `
+        alter table local_media_files
+          add column if not exists media_context jsonb,
+          add column if not exists source_search_title text,
+          add column if not exists cover_image_url text,
+          add column if not exists banner_image_url text
+      `,
+      `
+        create table if not exists playback_progress (
+          id uuid primary key,
+          local_media_file_id uuid references local_media_files(id) on delete cascade,
+          metadata_provider text,
+          metadata_id integer,
+          source_provider text,
+          source_media_url text,
+          episode_url text,
+          media_title text,
+          episode_title text,
+          episode_number text,
+          position_seconds double precision not null default 0,
+          duration_seconds double precision,
+          completed boolean not null default false,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now()
+        )
+      `,
+      `
+        create unique index if not exists playback_progress_local_file_idx
+          on playback_progress (local_media_file_id)
+          where local_media_file_id is not null
+      `,
+      `
+        create unique index if not exists playback_progress_episode_idx
+          on playback_progress (
+            metadata_provider,
+            metadata_id,
+            source_provider,
+            episode_number
+          )
+          where local_media_file_id is null
+            and metadata_provider is not null
+            and metadata_id is not null
+            and source_provider is not null
+            and episode_number is not null
+      `,
+      `
+        create index if not exists playback_progress_continue_idx
+          on playback_progress (completed, updated_at desc)
+      `,
+    ],
+  },
 ];

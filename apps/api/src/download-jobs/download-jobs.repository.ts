@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type {
+  DownloadedAnime,
   DownloadJob,
   DownloadJobEngine,
   DownloadJobStatus,
@@ -51,9 +52,13 @@ interface DownloadJobRow {
 interface LocalMediaFileRow {
   id: string;
   download_job_id: string;
+  media_context: DownloadMediaContext | null;
   metadata_provider: string | null;
   metadata_id: number | null;
   display_title: string | null;
+  source_search_title: string | null;
+  cover_image_url: string | null;
+  banner_image_url: string | null;
   source_provider: string | null;
   source_media_title: string | null;
   source_media_url: string | null;
@@ -276,9 +281,13 @@ export class DownloadJobsRepository {
         insert into local_media_files (
           id,
           download_job_id,
+          media_context,
           metadata_provider,
           metadata_id,
           display_title,
+          source_search_title,
+          cover_image_url,
+          banner_image_url,
           source_provider,
           source_media_title,
           source_media_url,
@@ -291,14 +300,19 @@ export class DownloadJobsRepository {
           size_bytes
         )
         values (
-          $1, $2, $3, $4, $5, $6, $7, $8,
-          $9, $10, $11, $12, $13, $14, $15
+          $1, $2, $3::jsonb, $4, $5, $6, $7, $8,
+          $9, $10, $11, $12, $13, $14, $15,
+          $16, $17, $18, $19
         )
         on conflict (download_job_id) do update
         set
+          media_context = excluded.media_context,
           metadata_provider = excluded.metadata_provider,
           metadata_id = excluded.metadata_id,
           display_title = excluded.display_title,
+          source_search_title = excluded.source_search_title,
+          cover_image_url = excluded.cover_image_url,
+          banner_image_url = excluded.banner_image_url,
           source_provider = excluded.source_provider,
           source_media_title = excluded.source_media_title,
           source_media_url = excluded.source_media_url,
@@ -315,9 +329,13 @@ export class DownloadJobsRepository {
       [
         randomUUID(),
         job.id,
+        context ? JSON.stringify(context) : null,
         context?.metadataProvider ?? null,
         context?.metadataId ?? null,
         context?.displayTitle ?? job.option.mediaTitle ?? null,
+        context?.sourceSearchTitle ?? null,
+        context?.coverImageUrl ?? null,
+        context?.bannerImageUrl ?? null,
         context?.sourceProvider ?? job.option.sourceProvider,
         context?.sourceMediaTitle ?? job.option.mediaTitle ?? null,
         context?.sourceMediaUrl ?? job.option.sourcePageUrl,
@@ -334,12 +352,66 @@ export class DownloadJobsRepository {
     return mapLocalMediaFile(result.rows[0]);
   }
 
+  async getLocalMediaFile(id: string) {
+    const result = await this.database.query<LocalMediaFileRow>(
+      'select * from local_media_files where id = $1',
+      [id],
+    );
+
+    return result.rows[0] ? mapLocalMediaFile(result.rows[0]) : undefined;
+  }
+
   async listLocalMediaFiles() {
     const result = await this.database.query<LocalMediaFileRow>(
       'select * from local_media_files order by created_at desc',
     );
 
     return result.rows.map(mapLocalMediaFile);
+  }
+
+  async listDownloadedAnime(): Promise<DownloadedAnime[]> {
+    const files = await this.listLocalMediaFiles();
+    const animeByKey = new Map<string, DownloadedAnime>();
+
+    for (const file of files) {
+      const key =
+        file.metadataProvider && file.metadataId
+          ? `${file.metadataProvider}:${file.metadataId}`
+          : `${file.sourceProvider ?? 'unknown'}:${file.sourceMediaUrl ?? file.displayTitle ?? file.sourceMediaTitle ?? file.id}`;
+      const existing = animeByKey.get(key);
+
+      if (existing) {
+        existing.files.push(file);
+        existing.updatedAt =
+          file.updatedAt > existing.updatedAt ? file.updatedAt : existing.updatedAt;
+        continue;
+      }
+
+      animeByKey.set(key, {
+        key,
+        metadataProvider: file.metadataProvider,
+        metadataId: file.metadataId,
+        displayTitle:
+          file.displayTitle ??
+          file.sourceMediaTitle ??
+          file.mediaContext?.displayTitle ??
+          'Downloaded anime',
+        sourceSearchTitle:
+          file.sourceSearchTitle ?? file.mediaContext?.sourceSearchTitle,
+        coverImageUrl: file.coverImageUrl ?? file.mediaContext?.coverImageUrl,
+        bannerImageUrl:
+          file.bannerImageUrl ?? file.mediaContext?.bannerImageUrl,
+        sourceProvider: file.sourceProvider,
+        sourceMediaTitle: file.sourceMediaTitle,
+        sourceMediaUrl: file.sourceMediaUrl,
+        files: [file],
+        updatedAt: file.updatedAt,
+      });
+    }
+
+    return Array.from(animeByKey.values()).sort((first, second) =>
+      second.updatedAt.localeCompare(first.updatedAt),
+    );
   }
 }
 
@@ -479,6 +551,10 @@ function mapLocalMediaFile(row: LocalMediaFileRow): LocalMediaFile {
     updatedAt: toIsoString(row.updated_at),
   };
 
+  if (row.media_context) {
+    file.mediaContext = row.media_context;
+  }
+
   if (row.metadata_provider) {
     file.metadataProvider = row.metadata_provider;
   }
@@ -489,6 +565,18 @@ function mapLocalMediaFile(row: LocalMediaFileRow): LocalMediaFile {
 
   if (row.display_title) {
     file.displayTitle = row.display_title;
+  }
+
+  if (row.source_search_title) {
+    file.sourceSearchTitle = row.source_search_title;
+  }
+
+  if (row.cover_image_url) {
+    file.coverImageUrl = row.cover_image_url;
+  }
+
+  if (row.banner_image_url) {
+    file.bannerImageUrl = row.banner_image_url;
   }
 
   if (row.source_provider) {
