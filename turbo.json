@@ -17,6 +17,10 @@
       "dependsOn": ["^lint"],
       "outputs": []
     },
+    "lint:strict": {
+      "dependsOn": ["^lint:strict"],
+      "outputs": []
+    },
     "test": {
       "dependsOn": ["^test"],
       "outputs": []

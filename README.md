@@ -71,13 +71,18 @@ Useful commands:
 bun install
 bun run dev
 bun run build
+bun run check
 bun run web:dev
 bun run api:dev
+bun run lint
+bun run lint:strict
 bun run db:start
 bun run db:ping
 bun run db:stop
 bun run --filter @elysium/api smoke:witanime -- Akane-banashi 5
 ```
+
+`bun run lint` is advisory. Use `bun run check` and `bun run build` as the hard correctness gates, and reserve `bun run lint:strict` for intentional cleanup passes.
 
 Recommended later additions:
 

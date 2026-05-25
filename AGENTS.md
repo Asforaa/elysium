@@ -97,6 +97,12 @@ Provider smoke tests:
   - `bun run --filter @elysium/api smoke:witanime -- Akane-banashi 5`
 - This should search WitAnime, select the media, decode episodes, decode download options, and print the structured provider URLs.
 
+Linting:
+
+- `bun run lint` is advisory and should not block work on style/preference issues.
+- Use `bun run check` and `bun run build` as the real correctness gates for compile/type/build failures.
+- Use `bun run lint:strict` only when intentionally doing a stricter cleanup pass.
+
 Architecture rule:
 
 ```text
