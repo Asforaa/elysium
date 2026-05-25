@@ -1299,23 +1299,24 @@ function AnimeDetailPanel({
 }) {
   const details = hasDetails(anime) ? anime : undefined;
   const coverUrl = anime.coverImage?.extraLarge ?? anime.coverImage?.large ?? anime.coverImage?.medium;
+  const hasBanner = Boolean(anime.bannerImage);
   const metadataLine = getAnimeMetadataLine(anime);
 
   return (
     <section className="relative overflow-hidden rounded-xl border bg-card text-card-foreground">
-      <div className="relative z-0 h-[clamp(12rem,26vw,20rem)] overflow-hidden bg-muted 2xl:h-auto 2xl:overflow-visible">
-        {anime.bannerImage ? (
+      {hasBanner ? (
+        <div className="relative z-0 h-[clamp(12rem,26vw,20rem)] overflow-hidden bg-muted 2xl:h-auto 2xl:overflow-visible">
           <FocusableImage
             alt={`${anime.displayTitle} banner`}
             buttonClassName="block h-full w-full rounded-none 2xl:h-auto"
             imageClassName="h-full w-full object-cover opacity-80 2xl:h-auto 2xl:object-contain"
-            src={anime.bannerImage}
+            src={anime.bannerImage ?? ''}
             onFocusImage={onImageFocus}
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <div className="relative z-10 grid gap-4 p-4 md:grid-cols-[12rem_minmax(0,1fr)] md:p-6">
-        <div className="relative z-20 md:-mt-24">
+        <div className={cn('relative z-20', hasBanner && 'md:-mt-24')}>
           {coverUrl ? (
             <FocusableImage
               alt={`${anime.displayTitle} cover`}
