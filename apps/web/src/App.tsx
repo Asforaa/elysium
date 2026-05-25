@@ -15,7 +15,6 @@ import {
   getAnimeMetadata,
   getDownloadOptions,
   getEpisodes,
-  listProviders,
   searchAnimeMetadata,
   searchMedia,
 } from '@/lib/api';
@@ -24,7 +23,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -66,11 +64,6 @@ function App({
   const [selectedEpisodeUrl, setSelectedEpisodeUrl] = useState<string | null>(null);
   const [focusedImage, setFocusedImage] = useState<FocusedImage | null>(null);
   const selectedAnimeId = Number.isFinite(routeAnimeId) ? routeAnimeId : undefined;
-
-  const providersQuery = useQuery({
-    queryKey: ['providers'],
-    queryFn: listProviders,
-  });
 
   const animeSearchQuery = useQuery({
     queryKey: ['metadata', 'anilist', 'search', animeQuery.trim()],
@@ -159,14 +152,7 @@ function App({
       <div className="mx-auto flex max-w-6xl flex-col gap-4">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold">Elysium</h1>
-              <Badge variant="secondary">Private media center</Badge>
-            </div>
-            <p className="max-w-3xl text-sm text-muted-foreground">
-              Search AniList for canonical anime metadata, then match the selected title against
-              source adapters for public download options.
-            </p>
+            <h1 className="text-2xl font-semibold">Elysium</h1>
           </div>
           <ThemeToggle />
         </header>
@@ -175,11 +161,6 @@ function App({
           <CardHeader>
             <CardTitle>AniList Search</CardTitle>
             <CardDescription>Autocomplete is the source of truth for anime metadata.</CardDescription>
-            <CardAction>
-              <Badge variant={providersQuery.isSuccess ? 'outline' : 'secondary'}>
-                {providersQuery.data?.length ?? 0} source provider
-              </Badge>
-            </CardAction>
           </CardHeader>
           <CardContent>
             <AnimeAutocomplete
@@ -208,7 +189,6 @@ function App({
             relations={animeRelations}
             selectedAnimeId={selectedAnimeId}
             onAnimeSelect={handleAnimeSelect}
-            onImageFocus={setFocusedImage}
           />
         ) : null}
 
@@ -244,7 +224,7 @@ function App({
             <CardTitle>Download Options</CardTitle>
             <CardDescription>
               {selectedEpisode
-                ? `${selectedEpisode.mediaTitle} ${selectedEpisode.title}`
+                ? `${selectedEpisode.mediaTitle} ${formatEpisodeTitle(selectedEpisode)}`
                 : 'Select an episode'}
             </CardDescription>
           </CardHeader>
@@ -290,12 +270,10 @@ function RelatedAnimeSection({
   relations,
   selectedAnimeId,
   onAnimeSelect,
-  onImageFocus,
 }: {
   relations: AnimeRelation[];
   selectedAnimeId?: number;
   onAnimeSelect: (anime: AnimeMetadataSearchResult) => void;
-  onImageFocus: (image: FocusedImage) => void;
 }) {
   const sortedRelations = useMemo(
     () =>
@@ -313,7 +291,7 @@ function RelatedAnimeSection({
     <Card>
       <CardHeader>
         <CardTitle>Prequel & Sequel</CardTitle>
-        <CardDescription>Select a related anime to search source providers.</CardDescription>
+        <CardDescription>Select a related anime to load its episodes.</CardDescription>
       </CardHeader>
       <CardContent>
         {sortedRelations.length ? (
@@ -324,7 +302,6 @@ function RelatedAnimeSection({
                 relation={relation}
                 selected={selectedAnimeId === relation.anime.id}
                 onAnimeSelect={onAnimeSelect}
-                onImageFocus={onImageFocus}
               />
             ))}
           </div>
@@ -340,12 +317,10 @@ function RelatedAnimeCard({
   relation,
   selected,
   onAnimeSelect,
-  onImageFocus,
 }: {
   relation: AnimeRelation;
   selected: boolean;
   onAnimeSelect: (anime: AnimeMetadataSearchResult) => void;
-  onImageFocus: (image: FocusedImage) => void;
 }) {
   const coverUrl =
     relation.anime.coverImage?.extraLarge ??
@@ -367,13 +342,11 @@ function RelatedAnimeCard({
     >
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border bg-muted">
         {coverUrl ? (
-          <FocusableImage
+          <img
             alt={`${relation.anime.displayTitle} cover`}
-            buttonClassName="h-full w-full rounded-none"
-            imageClassName="h-full w-full object-cover"
+            className="h-full w-full object-cover"
             src={coverUrl}
-            stopPropagation
-            onFocusImage={onImageFocus}
+            onError={hideBrokenImage}
           />
         ) : null}
         <Badge className="absolute left-2 top-2 shadow-sm" variant="secondary">
@@ -391,7 +364,9 @@ function RelatedAnimeCard({
           {relation.anime.displayTitle}
         </p>
         {relation.anime.format ? (
-          <p className="text-xs text-muted-foreground">{formatToken(relation.anime.format)}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatMediaFormat(relation.anime.format)}
+          </p>
         ) : null}
       </div>
     </div>
@@ -472,7 +447,7 @@ function AnimeAutocomplete({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{item.displayTitle}</span>
                   <span className="block truncate text-sm text-muted-foreground">
-                    {[item.title.english, item.title.native].filter(Boolean).join(' / ')}
+                    {item.title.english ?? item.title.romaji ?? item.displayTitle}
                   </span>
                 </span>
                 <span className="flex shrink-0 flex-wrap justify-end gap-1">
@@ -502,6 +477,8 @@ function AnimeDetailPanel({
 }) {
   const details = hasDetails(anime) ? anime : undefined;
   const coverUrl = anime.coverImage?.extraLarge ?? anime.coverImage?.large ?? anime.coverImage?.medium;
+  const englishTitle = anime.title.english ?? anime.title.romaji ?? anime.displayTitle;
+  const metadataLine = getAnimeMetadataLine(anime);
 
   return (
     <section className="relative overflow-hidden rounded-xl border bg-card text-card-foreground">
@@ -536,8 +513,11 @@ function AnimeDetailPanel({
               <h2 className="text-2xl font-semibold leading-tight">{anime.displayTitle}</h2>
               {loading ? <Badge variant="secondary">Refreshing</Badge> : null}
             </div>
-            {anime.title.native ? (
-              <p className="text-sm text-muted-foreground">{anime.title.native}</p>
+            {englishTitle ? (
+              <p className="text-sm text-muted-foreground">{englishTitle}</p>
+            ) : null}
+            {metadataLine ? (
+              <p className="text-sm text-muted-foreground">{metadataLine}</p>
             ) : null}
             {anime.description ? (
               <p className="max-w-4xl whitespace-pre-line text-sm leading-6 text-muted-foreground">
@@ -545,27 +525,6 @@ function AnimeDetailPanel({
               </p>
             ) : null}
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            {anime.format ? <Badge variant="outline">{anime.format}</Badge> : null}
-            {anime.status ? <Badge variant="outline">{formatToken(anime.status)}</Badge> : null}
-            {anime.episodes ? <Badge variant="outline">{anime.episodes} episodes</Badge> : null}
-            {anime.durationMinutes ? (
-              <Badge variant="outline">{anime.durationMinutes} min</Badge>
-            ) : null}
-            {anime.seasonYear ? <Badge variant="outline">{anime.seasonYear}</Badge> : null}
-            {anime.averageScore ? <Badge variant="outline">{anime.averageScore}% score</Badge> : null}
-          </div>
-
-          {anime.genres.length ? (
-            <div className="flex flex-wrap gap-2">
-              {anime.genres.map((genre) => (
-                <Badge key={genre} variant="secondary">
-                  {genre}
-                </Badge>
-              ))}
-            </div>
-          ) : null}
 
           {details ? <AnimeDetailExtras details={details} onImageFocus={onImageFocus} /> : null}
         </div>
@@ -581,20 +540,22 @@ function AnimeDetailExtras({
   details: AnimeMetadataDetails;
   onImageFocus: (image: FocusedImage) => void;
 }) {
+  const tags = getCombinedTags(details);
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <InfoItem label="Score" value={formatScore(details)} />
         <InfoItem label="Studios" value={details.studios.map((studio) => studio.name).join(', ')} />
         <InfoItem label="Source" value={formatToken(details.source)} />
         <InfoItem label="Start" value={formatDate(details.startDate)} />
-        <InfoItem label="AniList" value={details.siteUrl ? `#${details.id}` : undefined} />
       </div>
 
-      {details.tags.length ? (
+      {tags.length ? (
         <div className="flex flex-wrap gap-2">
-          {details.tags.slice(0, 8).map((tag) => (
-            <Badge key={tag.name} variant="outline">
-              {tag.name}
+          {tags.map((tag) => (
+            <Badge className="px-3 py-1" key={tag} variant="secondary">
+              {tag}
             </Badge>
           ))}
         </div>
@@ -748,7 +709,7 @@ function EpisodeButton({
       type="button"
       onClick={onSelect}
     >
-      <span>{episode.title}</span>
+      <span>{formatEpisodeTitle(episode)}</span>
       {selected ? <Badge variant="secondary">Selected</Badge> : null}
     </button>
   );
@@ -791,12 +752,113 @@ function formatToken(value?: string) {
     .join(' ');
 }
 
+function getAnimeMetadataLine(anime: AnimeMetadataSearchResult | AnimeMetadataDetails) {
+  return [
+    formatStatusWithAiringDay(anime),
+    formatSeasonYear(anime),
+    formatEpisodeCount(anime.episodes),
+    formatMediaFormat(anime.format),
+  ]
+    .filter(Boolean)
+    .join(' | ');
+}
+
+function formatStatusWithAiringDay(
+  anime: AnimeMetadataSearchResult | AnimeMetadataDetails,
+) {
+  const status = formatToken(anime.status);
+
+  if (!status) {
+    return undefined;
+  }
+
+  const airingDay =
+    hasDetails(anime) && anime.status?.toUpperCase() === 'RELEASING'
+      ? formatAiringDay(anime.nextAiringEpisode?.airingAt)
+      : undefined;
+
+  return airingDay ? `${status} (${airingDay})` : status;
+}
+
+function formatAiringDay(airingAt?: string) {
+  if (!airingAt) {
+    return undefined;
+  }
+
+  const date = new Date(airingAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+
+  return date.toLocaleDateString('en-US', { weekday: 'long' });
+}
+
+function formatSeasonYear(anime: AnimeMetadataSearchResult | AnimeMetadataDetails) {
+  return [formatToken(anime.season), anime.seasonYear].filter(Boolean).join(' ');
+}
+
+function formatEpisodeCount(episodes?: number) {
+  if (!episodes) {
+    return undefined;
+  }
+
+  return `${episodes} ${episodes === 1 ? 'Episode' : 'Episodes'}`;
+}
+
+function formatMediaFormat(format?: string) {
+  switch (format?.toUpperCase()) {
+    case 'TV':
+    case 'TV_SHORT':
+      return 'Series';
+    case 'MOVIE':
+      return 'Movie';
+    case 'SPECIAL':
+      return 'Special';
+    case 'OVA':
+    case 'ONA':
+      return format.toUpperCase();
+    default:
+      return formatToken(format);
+  }
+}
+
+function formatScore(details: AnimeMetadataDetails) {
+  const score = details.averageScore ?? details.meanScore;
+
+  return score ? `${score}%` : undefined;
+}
+
+function getCombinedTags(details: AnimeMetadataDetails) {
+  return Array.from(
+    new Set([
+      ...details.genres,
+      ...details.tags.filter((tag) => !tag.spoiler).map((tag) => tag.name),
+    ]),
+  );
+}
+
 function formatDate(date?: { year?: number; month?: number; day?: number }) {
   if (!date?.year) {
     return undefined;
   }
 
   return [date.year, date.month, date.day].filter(Boolean).join('-');
+}
+
+function formatEpisodeTitle(episode: EpisodeSummary) {
+  const episodeNumber =
+    normalizeEpisodeNumber(episode.number) ?? normalizeEpisodeNumber(episode.title);
+
+  return episodeNumber ? `Episode ${episodeNumber}` : episode.title;
+}
+
+function normalizeEpisodeNumber(value?: string) {
+  const normalized = value
+    ?.replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)));
+
+  return normalized?.match(/\d+(?:\.\d+)?/)?.[0];
 }
 
 function toAnimeSlug(
