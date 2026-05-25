@@ -19,6 +19,7 @@ import { Route as DownloadsRouteImport } from './routes/downloads'
 import { Route as AnimeRouteImport } from './routes/anime'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AnimeIndexRouteImport } from './routes/anime.index'
 import { Route as SearchAnimeRouteImport } from './routes/search.anime'
 import { Route as AnimeAnimeIdSlugRouteImport } from './routes/anime.$animeId.$slug'
 import { Route as AnimeAnimeIdSlugEpisodeEpisodeNumberRouteImport } from './routes/anime.$animeId.$slug.episode.$episodeNumber'
@@ -73,6 +74,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnimeIndexRoute = AnimeIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AnimeRoute,
+} as any)
 const SearchAnimeRoute = SearchAnimeRouteImport.update({
   id: '/search/anime',
   path: '/search/anime',
@@ -102,13 +108,13 @@ export interface FileRoutesByFullPath {
   '/tv-shows': typeof TvShowsRoute
   '/watch-later': typeof WatchLaterRoute
   '/search/anime': typeof SearchAnimeRoute
+  '/anime/': typeof AnimeIndexRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRouteWithChildren
   '/anime/$animeId/$slug/episode/$episodeNumber': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/anime': typeof AnimeRouteWithChildren
   '/downloads': typeof DownloadsRoute
   '/favourites': typeof FavouritesRoute
   '/home': typeof HomeRoute
@@ -117,6 +123,7 @@ export interface FileRoutesByTo {
   '/tv-shows': typeof TvShowsRoute
   '/watch-later': typeof WatchLaterRoute
   '/search/anime': typeof SearchAnimeRoute
+  '/anime': typeof AnimeIndexRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRouteWithChildren
   '/anime/$animeId/$slug/episode/$episodeNumber': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRoute
 }
@@ -133,6 +140,7 @@ export interface FileRoutesById {
   '/tv-shows': typeof TvShowsRoute
   '/watch-later': typeof WatchLaterRoute
   '/search/anime': typeof SearchAnimeRoute
+  '/anime/': typeof AnimeIndexRoute
   '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRouteWithChildren
   '/anime/$animeId/$slug/episode/$episodeNumber': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRoute
 }
@@ -150,13 +158,13 @@ export interface FileRouteTypes {
     | '/tv-shows'
     | '/watch-later'
     | '/search/anime'
+    | '/anime/'
     | '/anime/$animeId/$slug'
     | '/anime/$animeId/$slug/episode/$episodeNumber'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/account'
-    | '/anime'
     | '/downloads'
     | '/favourites'
     | '/home'
@@ -165,6 +173,7 @@ export interface FileRouteTypes {
     | '/tv-shows'
     | '/watch-later'
     | '/search/anime'
+    | '/anime'
     | '/anime/$animeId/$slug'
     | '/anime/$animeId/$slug/episode/$episodeNumber'
   id:
@@ -180,6 +189,7 @@ export interface FileRouteTypes {
     | '/tv-shows'
     | '/watch-later'
     | '/search/anime'
+    | '/anime/'
     | '/anime/$animeId/$slug'
     | '/anime/$animeId/$slug/episode/$episodeNumber'
   fileRoutesById: FileRoutesById
@@ -270,6 +280,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/anime/': {
+      id: '/anime/'
+      path: '/'
+      fullPath: '/anime/'
+      preLoaderRoute: typeof AnimeIndexRouteImport
+      parentRoute: typeof AnimeRoute
+    }
     '/search/anime': {
       id: '/search/anime'
       path: '/search/anime'
@@ -307,10 +324,12 @@ const AnimeAnimeIdSlugRouteWithChildren =
   AnimeAnimeIdSlugRoute._addFileChildren(AnimeAnimeIdSlugRouteChildren)
 
 interface AnimeRouteChildren {
+  AnimeIndexRoute: typeof AnimeIndexRoute
   AnimeAnimeIdSlugRoute: typeof AnimeAnimeIdSlugRouteWithChildren
 }
 
 const AnimeRouteChildren: AnimeRouteChildren = {
+  AnimeIndexRoute: AnimeIndexRoute,
   AnimeAnimeIdSlugRoute: AnimeAnimeIdSlugRouteWithChildren,
 }
 
