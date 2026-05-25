@@ -8,16 +8,24 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import {
+  ArrowUpDown,
   Clapperboard,
+  ChevronDown,
   Clock,
   Download,
   Film,
+  Grid2X2,
+  Grid3X3,
   Heart,
   Home,
   LogOut,
   Moon,
   Plus,
+  Rows3,
+  Search,
+  SlidersHorizontal,
   Sun,
+  Tags,
   Tv,
   User,
   X,
@@ -105,10 +113,16 @@ const EMPTY_ANIME_RESULTS: AnimeMetadataSearchResult[] = [];
 const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
 const EMPTY_EPISODES: EpisodeSummary[] = [];
 const EMPTY_DOWNLOAD_JOBS: DownloadJob[] = [];
-const DEFAULT_ANIME_QUERY = 'Akane-banashi';
 const PROFILE_PHOTO_SIZE = 256;
 const PROFILE_PHOTO_QUALITY = 0.82;
 const MAX_PROFILE_PHOTO_SOURCE_BYTES = 10 * 1024 * 1024;
+const SEARCH_FILTERS = [
+  { label: 'Genres', value: 'Any' },
+  { label: 'Year', value: 'Any' },
+  { label: 'Season', value: 'Any' },
+  { label: 'Format', value: 'Any' },
+  { label: 'Airing Status', value: 'Any' },
+];
 const MAIN_NAV_ITEMS: SidebarNavItem[] = [
   { title: 'Home', icon: Home },
   { title: 'Anime', icon: Clapperboard },
@@ -137,30 +151,27 @@ type FocusedImage = {
 
 function App({
   routeAnimeId,
-  routeAnimeSlug,
 }: {
   routeAnimeId?: number;
   routeAnimeSlug?: string;
 }) {
   const navigate = useNavigate();
-  const [animeQuery, setAnimeQuery] = useState(
-    routeAnimeSlug ? humanizeAnimeSlug(routeAnimeSlug) : DEFAULT_ANIME_QUERY,
-  );
+  const [animeQuery, setAnimeQuery] = useState('');
   const [selectedEpisodeUrl, setSelectedEpisodeUrl] = useState<string | null>(null);
   const [focusedImage, setFocusedImage] = useState<FocusedImage | null>(null);
   const selectedAnimeId = Number.isFinite(routeAnimeId) ? routeAnimeId : undefined;
+  const trimmedAnimeQuery = animeQuery.trim();
+  const showingAnimeSearch = trimmedAnimeQuery.length > 0;
 
   const animeSearchQuery = useQuery({
-    queryKey: ['metadata', 'anilist', 'search', animeQuery.trim()],
-    queryFn: () => searchAnimeMetadata(animeQuery.trim()),
-    enabled: animeQuery.trim().length >= 2,
+    queryKey: ['metadata', 'anilist', 'search', trimmedAnimeQuery],
+    queryFn: () => searchAnimeMetadata(trimmedAnimeQuery),
+    enabled: showingAnimeSearch,
     staleTime: 60_000,
   });
 
   const animeResults = animeSearchQuery.data ?? EMPTY_ANIME_RESULTS;
-  const previewAnime =
-    animeResults.find((anime) => anime.id === selectedAnimeId) ?? animeResults[0];
-  const activeAnimeId = selectedAnimeId ?? previewAnime?.id;
+  const activeAnimeId = selectedAnimeId;
 
   const animeDetailsQuery = useQuery({
     queryKey: ['metadata', 'anilist', 'anime', activeAnimeId],
@@ -169,7 +180,7 @@ function App({
     staleTime: 5 * 60_000,
   });
 
-  const animeDetails = animeDetailsQuery.data ?? previewAnime;
+  const animeDetails = animeDetailsQuery.data;
   const sourceSearchTerm = selectedAnimeId && animeDetails ? animeDetails.sourceSearchTitle : '';
   const animeRelations =
     animeDetails && hasDetails(animeDetails) ? (animeDetails.relations ?? []) : [];
@@ -244,7 +255,7 @@ function App({
   }
 
   function handleAnimeSelect(item: AnimeMetadataSearchResult) {
-    setAnimeQuery(item.displayTitle);
+    setAnimeQuery('');
     setSelectedEpisodeUrl(null);
     void navigate({
       params: {
@@ -271,32 +282,28 @@ function App({
         <div className="p-4 md:p-8">
           <div className="flex w-full flex-col gap-4">
             <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
                 <SidebarTrigger className="-ml-2 md:hidden" />
+                <AnimeSearchBar
+                  query={animeQuery}
+                  onQueryChange={handleAnimeQueryChange}
+                />
               </div>
               <AccountControls />
             </header>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>AniList Search</CardTitle>
-                <CardDescription>Autocomplete is the source of truth for anime metadata.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <AnimeAutocomplete
-                  query={animeQuery}
-                  results={animeResults}
-                  loading={animeSearchQuery.isFetching}
-                  selectedId={selectedAnimeId}
-                  onQueryChange={handleAnimeQueryChange}
-                  onSelect={handleAnimeSelect}
-                  onImageFocus={setFocusedImage}
-                />
-                {animeSearchQuery.isError ? <ErrorText error={animeSearchQuery.error} /> : null}
-              </CardContent>
-            </Card>
+            {showingAnimeSearch ? (
+              <AnimeSearchResults
+                loading={animeSearchQuery.isFetching}
+                query={trimmedAnimeQuery}
+                results={animeResults}
+                selectedId={selectedAnimeId}
+                error={animeSearchQuery.error}
+                onSelect={handleAnimeSelect}
+              />
+            ) : null}
 
-            {animeDetails ? (
+            {!showingAnimeSearch && animeDetails ? (
               <AnimeDetailPanel
                 anime={animeDetails}
                 loading={animeDetailsQuery.isFetching}
@@ -304,7 +311,7 @@ function App({
               />
             ) : null}
 
-            {animeDetails ? (
+            {!showingAnimeSearch && animeDetails ? (
               <RelatedAnimeSection
                 relations={animeRelations}
                 selectedAnimeId={selectedAnimeId}
@@ -312,108 +319,112 @@ function App({
               />
             ) : null}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Episodes</CardTitle>
-                <CardDescription>{selectedMedia ? selectedMedia.title : 'Pick an anime'}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {episodesLoading ? <ResultSkeleton compact /> : null}
-                {!episodesLoading && episodes.length ? (
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                    {episodes.map((episode) => (
-                      <EpisodeButton
-                        episode={episode}
-                        key={episode.url}
-                        selected={selectedEpisode?.url === episode.url}
-                        onSelect={() => setSelectedEpisodeUrl(episode.url)}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-                {!episodesLoading && sourceSearchTerm && !episodes.length ? (
-                  <p className="text-sm text-muted-foreground">No episodes found yet.</p>
-                ) : null}
-                {searchQuery.isError ? <ErrorText error={searchQuery.error} /> : null}
-                {episodesQuery.isError ? <ErrorText error={episodesQuery.error} /> : null}
-              </CardContent>
-            </Card>
+            {!showingAnimeSearch && animeDetails ? (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Episodes</CardTitle>
+                    <CardDescription>{selectedMedia ? selectedMedia.title : 'Pick an anime'}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {episodesLoading ? <ResultSkeleton compact /> : null}
+                    {!episodesLoading && episodes.length ? (
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        {episodes.map((episode) => (
+                          <EpisodeButton
+                            episode={episode}
+                            key={episode.url}
+                            selected={selectedEpisode?.url === episode.url}
+                            onSelect={() => setSelectedEpisodeUrl(episode.url)}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                    {!episodesLoading && sourceSearchTerm && !episodes.length ? (
+                      <p className="text-sm text-muted-foreground">No episodes found yet.</p>
+                    ) : null}
+                    {searchQuery.isError ? <ErrorText error={searchQuery.error} /> : null}
+                    {episodesQuery.isError ? <ErrorText error={episodesQuery.error} /> : null}
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Download Options</CardTitle>
-                <CardDescription>
-                  {selectedEpisode
-                    ? `${selectedEpisode.mediaTitle} ${formatEpisodeTitle(selectedEpisode)}`
-                    : 'Select an episode'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {downloadOptionsQuery.isLoading ? (
-                  <ResultSkeleton />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Quality</TableHead>
-                        <TableHead>Provider</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Source URL</TableHead>
-                        <TableHead className="text-right">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {downloadOptions.map((option) => {
-                        const job = downloadJobByUrl.get(option.providerUrl);
-                        const support = getDownloadSupport(option);
-                        const active = job ? isActiveDownloadStatus(job.status) : false;
-
-                        return (
-                          <TableRow key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}>
-                            <TableCell>
-                              <Badge variant="outline">{option.quality}</Badge>
-                            </TableCell>
-                            <TableCell>{formatHostProvider(option.hostProvider)}</TableCell>
-                            <TableCell>
-                              {job ? (
-                                <JobStatusBadge job={job} />
-                              ) : (
-                                <Badge variant={support.supported ? 'secondary' : 'outline'}>
-                                  {support.label}
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="max-w-[18rem] truncate font-mono text-xs">
-                              {option.providerUrl}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                disabled={
-                                  !support.supported ||
-                                  active ||
-                                  startDownloadMutation.isPending
-                                }
-                                size="sm"
-                                type="button"
-                                variant={job?.status === 'completed' ? 'outline' : 'default'}
-                                onClick={() => handleDownload(option)}
-                              >
-                                <Download />
-                                {getDownloadButtonLabel(job, support.supported)}
-                              </Button>
-                            </TableCell>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Download Options</CardTitle>
+                    <CardDescription>
+                      {selectedEpisode
+                        ? `${selectedEpisode.mediaTitle} ${formatEpisodeTitle(selectedEpisode)}`
+                        : 'Select an episode'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {downloadOptionsQuery.isLoading ? (
+                      <ResultSkeleton />
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Quality</TableHead>
+                            <TableHead>Provider</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Source URL</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-                {downloadOptionsQuery.isError ? <ErrorText error={downloadOptionsQuery.error} /> : null}
-                {startDownloadMutation.isError ? (
-                  <ErrorText error={startDownloadMutation.error} />
-                ) : null}
-              </CardContent>
-            </Card>
+                        </TableHeader>
+                        <TableBody>
+                          {downloadOptions.map((option) => {
+                            const job = downloadJobByUrl.get(option.providerUrl);
+                            const support = getDownloadSupport(option);
+                            const active = job ? isActiveDownloadStatus(job.status) : false;
+
+                            return (
+                              <TableRow key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}>
+                                <TableCell>
+                                  <Badge variant="outline">{option.quality}</Badge>
+                                </TableCell>
+                                <TableCell>{formatHostProvider(option.hostProvider)}</TableCell>
+                                <TableCell>
+                                  {job ? (
+                                    <JobStatusBadge job={job} />
+                                  ) : (
+                                    <Badge variant={support.supported ? 'secondary' : 'outline'}>
+                                      {support.label}
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="max-w-[18rem] truncate font-mono text-xs">
+                                  {option.providerUrl}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    disabled={
+                                      !support.supported ||
+                                      active ||
+                                      startDownloadMutation.isPending
+                                    }
+                                    size="sm"
+                                    type="button"
+                                    variant={job?.status === 'completed' ? 'outline' : 'default'}
+                                    onClick={() => handleDownload(option)}
+                                  >
+                                    <Download />
+                                    {getDownloadButtonLabel(job, support.supported)}
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
+                    {downloadOptionsQuery.isError ? <ErrorText error={downloadOptionsQuery.error} /> : null}
+                    {startDownloadMutation.isError ? (
+                      <ErrorText error={startDownloadMutation.error} />
+                    ) : null}
+                  </CardContent>
+                </Card>
+              </>
+            ) : null}
 
             <DownloadQueue jobs={downloadJobs} loading={downloadJobsQuery.isFetching} />
           </div>
@@ -423,6 +434,178 @@ function App({
         ) : null}
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+function AnimeSearchBar({
+  query,
+  onQueryChange,
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+}) {
+  return (
+    <div className="relative w-full max-w-xl">
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        aria-label="Search anime"
+        className="h-10 pl-9 pr-10"
+        placeholder="Search anime"
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+      />
+      {query ? (
+        <Button
+          aria-label="Clear search"
+          className="absolute right-1 top-1/2 size-8 -translate-y-1/2"
+          size="icon"
+          type="button"
+          variant="ghost"
+          onClick={() => onQueryChange('')}
+        >
+          <X />
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function AnimeSearchResults({
+  error,
+  loading,
+  query,
+  results,
+  selectedId,
+  onSelect,
+}: {
+  error: Error | null;
+  loading: boolean;
+  query: string;
+  results: AnimeMetadataSearchResult[];
+  selectedId?: number;
+  onSelect: (item: AnimeMetadataSearchResult) => void;
+}) {
+  return (
+    <section className="space-y-6 py-2">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
+        {SEARCH_FILTERS.map((filter) => (
+          <div className="space-y-2" key={filter.label}>
+            <p className="text-sm font-medium">{filter.label}</p>
+            <Button
+              className="h-11 w-full justify-between px-3 text-muted-foreground"
+              disabled
+              type="button"
+              variant="secondary"
+            >
+              {filter.value}
+              <ChevronDown />
+            </Button>
+          </div>
+        ))}
+        <div className="flex items-end">
+          <Button className="size-11" disabled size="icon" type="button" variant="secondary">
+            <SlidersHorizontal />
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <Tags className="size-5 text-muted-foreground" />
+          <Badge className="max-w-full truncate px-3 py-1 text-sm">
+            Search: {query}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <ArrowUpDown className="size-4" />
+            Popularity
+          </span>
+          <Separator className="h-5" orientation="vertical" />
+          <span className="inline-flex items-center gap-2">
+            <Grid3X3 className="size-5" />
+            <Grid2X2 className="size-5" />
+            <Rows3 className="size-5" />
+          </span>
+        </div>
+      </div>
+
+      {loading ? (
+        <AnimeSearchSkeletonGrid />
+      ) : (
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          {results.map((item) => (
+            <AnimeSearchResultCard
+              item={item}
+              key={item.id}
+              selected={selectedId === item.id}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      )}
+
+      {!loading && results.length === 0 && !error ? (
+        <p className="text-sm text-muted-foreground">No AniList results found.</p>
+      ) : null}
+      {error ? <ErrorText error={error} /> : null}
+    </section>
+  );
+}
+
+function AnimeSearchSkeletonGrid() {
+  return (
+    <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+      {Array.from({ length: 12 }, (_, index) => (
+        <div className="space-y-3" key={index}>
+          <Skeleton className="aspect-[2/3] w-full rounded-md" />
+          <Skeleton className="h-4 w-4/5" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AnimeSearchResultCard({
+  item,
+  selected,
+  onSelect,
+}: {
+  item: AnimeMetadataSearchResult;
+  selected: boolean;
+  onSelect: (item: AnimeMetadataSearchResult) => void;
+}) {
+  const coverUrl =
+    item.coverImage?.extraLarge ?? item.coverImage?.large ?? item.coverImage?.medium;
+
+  return (
+    <button
+      className="group/search-result min-w-0 space-y-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      type="button"
+      onClick={() => onSelect(item)}
+    >
+      <span className="relative block aspect-[2/3] overflow-hidden rounded-md bg-muted">
+        {coverUrl ? (
+          <img
+            alt={`${item.displayTitle} cover`}
+            className="h-full w-full object-cover transition-transform group-hover/search-result:scale-[1.02]"
+            src={coverUrl}
+            onError={hideBrokenImage}
+          />
+        ) : null}
+        {selected ? (
+          <Badge className="absolute left-2 top-2 shadow-sm">Selected</Badge>
+        ) : null}
+      </span>
+      <span className="block min-w-0 space-y-1">
+        <span className="line-clamp-2 text-sm font-medium leading-snug">
+          {item.displayTitle}
+        </span>
+        {item.seasonYear ? (
+          <span className="block text-xs text-muted-foreground">{item.seasonYear}</span>
+        ) : null}
+      </span>
+    </button>
   );
 }
 
@@ -1052,79 +1235,6 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-function AnimeAutocomplete({
-  query,
-  results,
-  loading,
-  selectedId,
-  onQueryChange,
-  onSelect,
-  onImageFocus,
-}: {
-  query: string;
-  results: AnimeMetadataSearchResult[];
-  loading: boolean;
-  selectedId?: number;
-  onQueryChange: (value: string) => void;
-  onSelect: (item: AnimeMetadataSearchResult) => void;
-  onImageFocus: (image: FocusedImage) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <Input
-        aria-label="Search AniList"
-        value={query}
-        onChange={(event) => onQueryChange(event.target.value)}
-        placeholder="Search anime on AniList"
-      />
-      <div className="max-h-72 overflow-auto rounded-xl border">
-        {loading ? (
-          <div className="space-y-2 p-3">
-            <Skeleton className="h-14 w-full" />
-            <Skeleton className="h-14 w-full" />
-          </div>
-        ) : (
-          results.map((item) => (
-            <div
-              className="flex w-full items-center gap-3 border-b p-3 text-left last:border-b-0 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              key={item.id}
-            >
-              {item.coverImage?.medium ? (
-                <FocusableImage
-                  alt={`${item.displayTitle} cover`}
-                  buttonClassName="h-14 w-10"
-                  imageClassName="h-14 w-10 rounded-md border object-cover"
-                  src={item.coverImage.medium}
-                  onFocusImage={onImageFocus}
-                />
-              ) : null}
-              <button
-                className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                type="button"
-                onClick={() => onSelect(item)}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{item.displayTitle}</span>
-                  <span className="block truncate text-sm text-muted-foreground">
-                    {item.title.english ?? item.title.romaji ?? item.displayTitle}
-                  </span>
-                </span>
-                <span className="flex shrink-0 flex-wrap justify-end gap-1">
-                  {item.seasonYear ? <Badge variant="outline">{item.seasonYear}</Badge> : null}
-                  {selectedId === item.id ? <Badge>Selected</Badge> : null}
-                </span>
-              </button>
-            </div>
-          ))
-        )}
-        {!loading && query.trim().length >= 2 && results.length === 0 ? (
-          <p className="p-3 text-sm text-muted-foreground">No AniList results found.</p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 function AnimeDetailPanel({
   anime,
   loading,
@@ -1718,10 +1828,6 @@ function toAnimeSlug(
     .replace(/^-+|-+$/g, '');
 
   return slug || 'anime';
-}
-
-function humanizeAnimeSlug(slug: string) {
-  return decodeURIComponent(slug).replace(/-/g, ' ');
 }
 
 export default App;
