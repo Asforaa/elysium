@@ -759,7 +759,7 @@ function ElysiumSidebar({
             className="size-8 shrink-0 object-contain"
             src={BRAND_MARK_SRC}
           />
-          <span className="truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
+          <span className="font-brand truncate text-xl font-normal leading-none group-data-[collapsible=icon]:hidden">
             Elysium
           </span>
           <SidebarTrigger className="ml-auto hidden md:inline-flex group-data-[collapsible=icon]:hidden" />
