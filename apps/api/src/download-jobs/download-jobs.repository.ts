@@ -12,23 +12,20 @@ import type {
 } from '@elysium/shared';
 import { DatabaseService } from '../database/database.service';
 
-type DownloadJobPatch = Partial<
-  Pick<
-    DownloadJob,
-    | 'attemptCount'
-    | 'completedAt'
-    | 'destinationPath'
-    | 'engine'
-    | 'errorMessage'
-    | 'filename'
-    | 'mediaContext'
-    | 'progressBytes'
-    | 'resolved'
-    | 'speedBytesPerSecond'
-    | 'status'
-    | 'totalBytes'
-  >
->;
+interface DownloadJobPatch {
+  attemptCount?: number;
+  completedAt?: string | null;
+  destinationPath?: string | null;
+  engine?: DownloadJobEngine | null;
+  errorMessage?: string | null;
+  filename?: string | null;
+  mediaContext?: DownloadMediaContext | null;
+  progressBytes?: number;
+  resolved?: ResolvedDownload | null;
+  speedBytesPerSecond?: number | null;
+  status?: DownloadJobStatus;
+  totalBytes?: number | null;
+}
 
 interface DownloadJobRow {
   id: string;
@@ -74,15 +71,15 @@ interface LocalMediaFileRow {
 }
 
 interface AttemptPatch {
-  completedAt?: string;
-  destinationPath?: string;
-  engine?: DownloadJobEngine;
-  errorMessage?: string;
-  filename?: string;
+  completedAt?: string | null;
+  destinationPath?: string | null;
+  engine?: DownloadJobEngine | null;
+  errorMessage?: string | null;
+  filename?: string | null;
   progressBytes?: number;
-  resolved?: ResolvedDownload;
+  resolved?: ResolvedDownload | null;
   status?: DownloadJobStatus;
-  totalBytes?: number;
+  totalBytes?: number | null;
 }
 
 const ACTIVE_STATUSES: DownloadJobStatus[] = [

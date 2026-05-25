@@ -106,6 +106,7 @@ bun run db:stop
 bun run --filter @elysium/api smoke:witanime -- Akane-banashi 5
 bun run --filter @elysium/api smoke:anilist -- Akane-banashi
 bun run --filter @elysium/api smoke:download-connections -- Akane-banashi 5
+bun run --filter @elysium/api downloads:finalize
 ```
 
 `bun run lint` is advisory. Use `bun run check` and `bun run build` as the hard correctness gates, and reserve `bun run lint:strict` for intentional cleanup passes.
@@ -126,6 +127,13 @@ Reasoning:
 - A local in-code worker keeps download state, filesystem writes, and progress tracking in one place.
 - The current worker uses concurrent HTTP range requests when a host supports `Range`, and falls back to a normal stream when it does not.
 - Mega stays on a custom local path through `megajs` because Mega file URLs are encrypted chunk streams, not plain direct HTTP links.
+- After the raw provider download finishes, the backend finalizes the local file:
+  - detects archives such as zip files by extension or file signature
+  - extracts the primary media file from zip archives
+  - deletes the archive only after a successful extraction
+  - renames the final playable file to `Title - EP 00 - QUALITY.ext`
+  - updates the persisted download job and `local_media_files` row to point at the final file
+  - removes interrupted partial files so failed segmented downloads do not leave broken archives behind
 
 The current shape is:
 
@@ -155,6 +163,14 @@ download option, optional AniList/media context, resolved file metadata,
 attempt count, progress, errors, completion timestamps, and the final local
 file path. Completed downloads seed `local_media_files`, which is the first
 piece of the local library model.
+
+If older completed jobs still point at raw provider names or archives, run:
+
+```bash
+bun run --filter @elysium/api downloads:finalize
+```
+
+This re-applies the same finalization rules to completed local files.
 
 Current supported host buttons in the UI:
 

@@ -97,6 +97,10 @@ Backend:
 - Use ReactPlayer for local downloaded files for now. Source-provider streaming hosts should be attached as iframe embeds from the provider adapter because they are already external player pages.
 - Use the local backend downloader for active download execution. It should try concurrent HTTP range downloads when supported, fall back to a normal stream when not, and keep Mega on its custom local `megajs` path.
 - Use `ELYSIUM_DOWNLOAD_DIR` for the local download destination and `ELYSIUM_DOWNLOAD_CONNECTIONS` for segmented HTTP concurrency.
+- Completed downloads must run through `apps/api/src/download-engine/download-file-finalizer.ts` before being marked completed.
+- Finalized local filenames should use `Title - EP 00 - QUALITY.ext` from AniList/source context instead of raw host filenames.
+- If a provider returns a zip archive, detect it by extension or signature, extract the primary media file, update the job/library row to the extracted playable file, and delete the zip only after successful extraction.
+- Interrupted/failed partial downloads should be removed from `ELYSIUM_DOWNLOAD_DIR` so corrupt preallocated archives do not accumulate or block retries.
 
 Monorepo:
 
@@ -137,6 +141,9 @@ Provider smoke tests:
 - Download connection CLI smoke test:
   - `bun run --filter @elysium/api smoke:download-connections -- Akane-banashi 5`
 - This should search every registered source adapter, choose an episode, extract host options, and attempt to resolve final file connections through shared host resolvers.
+- Completed local download finalization:
+  - `bun run --filter @elysium/api downloads:finalize`
+- This should re-apply archive extraction and canonical filename rules to already completed local files.
 
 Linting:
 
@@ -375,4 +382,4 @@ PostgreSQL should eventually store:
 - Normalize provider names at the boundary.
 - Prefer robust parsers and structured extraction over brittle string slicing.
 - Browser automation is fine for research and verification, but implementation should prefer normal HTTP parsing when the site exposes enough HTML/JS data.
-- Do not commit unless the user asks for a commit.
+- Follow the project commit behavior above: automatically create local commits for meaningful changes, stage only touched files, and do not push unless explicitly asked.

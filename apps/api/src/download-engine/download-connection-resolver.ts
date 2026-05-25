@@ -861,7 +861,9 @@ async function gofileJson<T extends GofileStatusResponse>(
 
   if (!response.ok || payload.status !== 'ok') {
     throw new Error(
-      `GoFile API request failed: ${payload.message ?? response.statusText}`,
+      `GoFile API request failed: ${
+        payload.message ?? payload.status ?? response.statusText
+      }`,
     );
   }
 

@@ -4,7 +4,8 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { resolve } from 'node:path';
+import { rm, stat } from 'node:fs/promises';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type {
   CreateDownloadJobRequest,
@@ -12,6 +13,7 @@ import type {
   ResolvedDownload,
 } from '@elysium/shared';
 import { DownloadConnectionResolver } from '../download-engine/download-connection-resolver';
+import { DownloadFileFinalizer } from '../download-engine/download-file-finalizer';
 import { LocalDownloader } from '../download-engine/local-downloader';
 import { DownloadJobsRepository } from './download-jobs.repository';
 
@@ -23,10 +25,24 @@ const ACTIVE_DOWNLOAD_STATUSES: DownloadJob['status'][] = [
   'paused',
 ];
 
+interface DownloadJobPatch {
+  completedAt?: string | null;
+  destinationPath?: string | null;
+  engine?: DownloadJob['engine'] | null;
+  errorMessage?: string | null;
+  filename?: string | null;
+  progressBytes?: number;
+  resolved?: ResolvedDownload | null;
+  speedBytesPerSecond?: number | null;
+  status?: DownloadJob['status'];
+  totalBytes?: number | null;
+}
+
 @Injectable()
 export class DownloadJobsService implements OnModuleInit {
   private readonly resolver = new DownloadConnectionResolver();
   private readonly downloader = new LocalDownloader();
+  private readonly finalizer = new DownloadFileFinalizer();
   private readonly updateQueues = new Map<
     string,
     Promise<DownloadJob | undefined>
@@ -35,7 +51,11 @@ export class DownloadJobsService implements OnModuleInit {
   constructor(private readonly repository: DownloadJobsRepository) {}
 
   async onModuleInit() {
-    await this.repository.markInterruptedJobsFailed();
+    const interruptedJobs = await this.repository.markInterruptedJobsFailed();
+
+    await Promise.all(
+      interruptedJobs.map((job) => this.recoverOrCleanupInterruptedJob(job)),
+    );
   }
 
   async createJob(request: CreateDownloadJobRequest): Promise<DownloadJob> {
@@ -80,6 +100,105 @@ export class DownloadJobsService implements OnModuleInit {
       speedBytesPerSecond: undefined,
       status: 'queued',
     };
+  }
+
+  async finalizeCompletedFiles() {
+    const jobs = await this.repository.listJobs();
+    const results: Array<{
+      id: string;
+      changed: boolean;
+      errorMessage?: string;
+      filename?: string;
+    }> = [];
+
+    for (const job of jobs) {
+      if (
+        job.status === 'failed' &&
+        job.destinationPath &&
+        job.errorMessage?.includes('interrupted')
+      ) {
+        const completedAt = new Date().toISOString();
+
+        await this.removePartialDownload(job.destinationPath);
+        await this.repository.updateJob(job.id, {
+          completedAt,
+          destinationPath: null,
+          errorMessage: 'Download interrupted by backend restart; partial file removed',
+          filename: null,
+          progressBytes: 0,
+          totalBytes: null,
+        });
+        await this.repository.updateAttempt(job.id, job.attemptCount, {
+          completedAt,
+          destinationPath: null,
+          errorMessage: 'Download interrupted by backend restart; partial file removed',
+          filename: null,
+          progressBytes: 0,
+          totalBytes: null,
+        });
+        results.push({
+          id: job.id,
+          changed: true,
+          errorMessage: 'Removed interrupted partial download file',
+          filename: job.filename,
+        });
+        continue;
+      }
+
+      if (
+        job.status !== 'completed' ||
+        !job.destinationPath ||
+        !job.filename ||
+        !job.engine
+      ) {
+        continue;
+      }
+
+      try {
+        const finalized = await this.finalizer.finalize(job, {
+          destinationPath: job.destinationPath,
+          engine: job.engine,
+          filename: job.filename,
+          progressBytes: job.progressBytes,
+          totalBytes: job.totalBytes,
+        });
+        const changed =
+          finalized.destinationPath !== job.destinationPath ||
+          finalized.filename !== job.filename ||
+          finalized.totalBytes !== job.totalBytes;
+
+        if (changed) {
+          Object.assign(job, {
+            destinationPath: finalized.destinationPath,
+            filename: finalized.filename,
+            progressBytes: finalized.progressBytes,
+            totalBytes: finalized.totalBytes,
+          });
+          await this.repository.updateJob(job.id, {
+            destinationPath: finalized.destinationPath,
+            filename: finalized.filename,
+            progressBytes: finalized.progressBytes,
+            totalBytes: finalized.totalBytes,
+          });
+          await this.repository.upsertLocalMediaFile(job);
+        }
+
+        results.push({
+          id: job.id,
+          changed,
+          filename: finalized.filename,
+        });
+      } catch (error) {
+        results.push({
+          id: job.id,
+          changed: false,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          filename: job.filename,
+        });
+      }
+    }
+
+    return results;
   }
 
   private async startJob(id: string) {
@@ -151,17 +270,25 @@ export class DownloadJobsService implements OnModuleInit {
     } catch (error) {
       const failedAt = new Date().toISOString();
       const errorMessage = error instanceof Error ? error.message : String(error);
+      const partialDestinationPath = job.destinationPath;
 
       await this.updateJob(job, {
         completedAt: failedAt,
+        destinationPath: null,
         errorMessage,
+        filename: null,
         speedBytesPerSecond: 0,
         status: 'failed',
+        totalBytes: null,
       });
+      await this.removePartialDownload(partialDestinationPath);
       await this.repository.updateAttempt(job.id, attemptNumber, {
         completedAt: failedAt,
+        destinationPath: null,
         errorMessage,
+        filename: null,
         status: 'failed',
+        totalBytes: null,
       });
     }
   }
@@ -174,7 +301,7 @@ export class DownloadJobsService implements OnModuleInit {
     const downloadDir =
       process.env.ELYSIUM_DOWNLOAD_DIR ?? DEFAULT_DOWNLOAD_DIR;
 
-    const result = await this.downloader.download(resolvedDownload, {
+    const rawResult = await this.downloader.download(resolvedDownload, {
       downloadDir,
       onProgress: (progress) => {
         void this.updateJob(job, progress).catch(() => undefined);
@@ -193,6 +320,7 @@ export class DownloadJobsService implements OnModuleInit {
         });
       },
     });
+    const result = await this.finalizer.finalize(job, rawResult);
 
     const completedAt = new Date().toISOString();
 
@@ -218,7 +346,96 @@ export class DownloadJobsService implements OnModuleInit {
     await this.repository.upsertLocalMediaFile(job);
   }
 
-  private async updateJob(job: DownloadJob, patch: Partial<DownloadJob>) {
+  private async recoverOrCleanupInterruptedJob(job: DownloadJob) {
+    if (!job.destinationPath || !job.filename || !job.engine) {
+      return;
+    }
+
+    const fileStats = await stat(job.destinationPath).catch(() => undefined);
+
+    if (!fileStats) {
+      return;
+    }
+
+    if (job.totalBytes && fileStats.size >= job.totalBytes) {
+      try {
+        const finalized = await this.finalizer.finalize(job, {
+          destinationPath: job.destinationPath,
+          engine: job.engine,
+          filename: job.filename,
+          progressBytes: fileStats.size,
+          totalBytes: fileStats.size,
+        });
+        const completedAt = new Date().toISOString();
+
+        Object.assign(job, {
+          completedAt,
+          destinationPath: finalized.destinationPath,
+          errorMessage: undefined,
+          filename: finalized.filename,
+          progressBytes: finalized.progressBytes,
+          speedBytesPerSecond: 0,
+          status: 'completed',
+          totalBytes: finalized.totalBytes,
+        });
+
+        await this.repository.updateJob(job.id, {
+          completedAt,
+          destinationPath: finalized.destinationPath,
+          errorMessage: null,
+          filename: finalized.filename,
+          progressBytes: finalized.progressBytes,
+          speedBytesPerSecond: 0,
+          status: 'completed',
+          totalBytes: finalized.totalBytes,
+        });
+        await this.repository.updateAttempt(job.id, job.attemptCount, {
+          completedAt,
+          destinationPath: finalized.destinationPath,
+          errorMessage: null,
+          filename: finalized.filename,
+          progressBytes: finalized.progressBytes,
+          status: 'completed',
+          totalBytes: finalized.totalBytes,
+        });
+        await this.repository.upsertLocalMediaFile(job);
+        return;
+      } catch {
+        // A preallocated interrupted segmented file can match the expected size
+        // while still being corrupt, so fall through to cleanup.
+      }
+    }
+
+    const completedAt = new Date().toISOString();
+
+    await this.removePartialDownload(job.destinationPath);
+    await this.repository.updateJob(job.id, {
+      completedAt,
+      destinationPath: null,
+      errorMessage: 'Download interrupted by backend restart; partial file removed',
+      filename: null,
+      progressBytes: 0,
+      totalBytes: null,
+    });
+    await this.repository.updateAttempt(job.id, job.attemptCount, {
+      completedAt,
+      destinationPath: null,
+      errorMessage: 'Download interrupted by backend restart; partial file removed',
+      filename: null,
+      progressBytes: 0,
+      totalBytes: null,
+    });
+  }
+
+  private async removePartialDownload(destinationPath?: string) {
+    if (!destinationPath || !isInsideDownloadDir(destinationPath)) {
+      return;
+    }
+
+    await rm(destinationPath, { force: true });
+  }
+
+  private async updateJob(job: DownloadJob, patch: DownloadJobPatch) {
     Object.assign(job, patch);
 
     const previousUpdate = this.updateQueues.get(job.id) ?? Promise.resolve(job);
@@ -249,5 +466,16 @@ function canDownloadLocally(download: ResolvedDownload) {
     Boolean(download.directUrl) ||
     (download.engine === 'custom' &&
       download.provider.toLowerCase().trim() === 'mega')
+  );
+}
+
+function isInsideDownloadDir(destinationPath: string) {
+  const downloadDir = process.env.ELYSIUM_DOWNLOAD_DIR ?? DEFAULT_DOWNLOAD_DIR;
+  const relativePath = relative(resolve(downloadDir), resolve(destinationPath));
+
+  return (
+    Boolean(relativePath) &&
+    !relativePath.startsWith('..') &&
+    !isAbsolute(relativePath)
   );
 }
