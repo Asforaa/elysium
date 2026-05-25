@@ -477,7 +477,6 @@ function AnimeDetailPanel({
 }) {
   const details = hasDetails(anime) ? anime : undefined;
   const coverUrl = anime.coverImage?.extraLarge ?? anime.coverImage?.large ?? anime.coverImage?.medium;
-  const englishTitle = anime.title.english ?? anime.title.romaji ?? anime.displayTitle;
   const metadataLine = getAnimeMetadataLine(anime);
 
   return (
@@ -513,9 +512,6 @@ function AnimeDetailPanel({
               <h2 className="text-2xl font-semibold leading-tight">{anime.displayTitle}</h2>
               {loading ? <Badge variant="secondary">Refreshing</Badge> : null}
             </div>
-            {englishTitle ? (
-              <p className="text-sm text-muted-foreground">{englishTitle}</p>
-            ) : null}
             {metadataLine ? (
               <p className="text-sm text-muted-foreground">{metadataLine}</p>
             ) : null}
@@ -550,6 +546,13 @@ function AnimeDetailExtras({
         <InfoItem label="Source" value={formatToken(details.source)} />
         <InfoItem label="Start" value={formatDate(details.startDate)} />
       </div>
+
+      {details.title.english ? (
+        <div className="rounded-lg border p-3">
+          <p className="text-xs text-muted-foreground">English Name</p>
+          <p className="mt-1 text-sm font-medium">{details.title.english}</p>
+        </div>
+      ) : null}
 
       {tags.length ? (
         <div className="flex flex-wrap gap-2">
