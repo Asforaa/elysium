@@ -2,7 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { Download, Moon, Sun, X } from 'lucide-react';
+import {
+  Clapperboard,
+  Clock,
+  Download,
+  Film,
+  Heart,
+  Home,
+  Moon,
+  Plus,
+  Sun,
+  Tv,
+  User,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { useTheme } from 'next-themes';
 import type {
   AnimeMetadataDetails,
@@ -34,6 +48,20 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -49,6 +77,24 @@ const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
 const EMPTY_EPISODES: EpisodeSummary[] = [];
 const EMPTY_DOWNLOAD_JOBS: DownloadJob[] = [];
 const DEFAULT_ANIME_QUERY = 'Akane-banashi';
+const MAIN_NAV_ITEMS: SidebarNavItem[] = [
+  { title: 'Home', icon: Home },
+  { title: 'Anime', icon: Clapperboard },
+  { title: 'TV Shows', icon: Tv },
+  { title: 'Movies', icon: Film },
+  { title: 'My List', icon: Plus },
+];
+const LIBRARY_NAV_ITEMS: SidebarNavItem[] = [
+  { title: 'Favourites', icon: Heart },
+  { title: 'Watch Later', icon: Clock },
+  { title: 'Downloads', icon: Download },
+  { title: 'My Account', icon: User },
+];
+
+type SidebarNavItem = {
+  icon: LucideIcon;
+  title: string;
+};
 
 type FocusedImage = {
   alt: string;
@@ -180,159 +226,239 @@ function App({
   }
 
   return (
-    <main className="min-h-svh bg-background p-4 text-foreground md:p-8">
-      <div className="mx-auto flex max-w-6xl flex-col gap-4">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold">Elysium</h1>
-          </div>
-          <ThemeToggle />
-        </header>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>AniList Search</CardTitle>
-            <CardDescription>Autocomplete is the source of truth for anime metadata.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AnimeAutocomplete
-              query={animeQuery}
-              results={animeResults}
-              loading={animeSearchQuery.isFetching}
-              selectedId={selectedAnimeId}
-              onQueryChange={handleAnimeQueryChange}
-              onSelect={handleAnimeSelect}
-              onImageFocus={setFocusedImage}
-            />
-            {animeSearchQuery.isError ? <ErrorText error={animeSearchQuery.error} /> : null}
-          </CardContent>
-        </Card>
-
-        {animeDetails ? (
-          <AnimeDetailPanel
-            anime={animeDetails}
-            loading={animeDetailsQuery.isFetching}
-            onImageFocus={setFocusedImage}
-          />
-        ) : null}
-
-        {animeDetails ? (
-          <RelatedAnimeSection
-            relations={animeRelations}
-            selectedAnimeId={selectedAnimeId}
-            onAnimeSelect={handleAnimeSelect}
-          />
-        ) : null}
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Episodes</CardTitle>
-            <CardDescription>{selectedMedia ? selectedMedia.title : 'Pick an anime'}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {episodesLoading ? <ResultSkeleton compact /> : null}
-            {!episodesLoading && episodes.length ? (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                {episodes.map((episode) => (
-                  <EpisodeButton
-                    episode={episode}
-                    key={episode.url}
-                    selected={selectedEpisode?.url === episode.url}
-                    onSelect={() => setSelectedEpisodeUrl(episode.url)}
-                  />
-                ))}
+    <SidebarProvider>
+      <ElysiumSidebar
+        activeItem={selectedAnimeId ? 'Anime' : 'Home'}
+        onHomeSelect={() => {
+          void navigate({ to: '/' });
+        }}
+      />
+      <SidebarInset className="min-h-svh bg-background text-foreground">
+        <div className="p-4 md:p-8">
+          <div className="mx-auto flex max-w-6xl flex-col gap-4">
+            <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-center gap-2">
+                <SidebarTrigger className="-ml-2" />
+                <h1 className="text-2xl font-semibold">Elysium</h1>
               </div>
-            ) : null}
-            {!episodesLoading && sourceSearchTerm && !episodes.length ? (
-              <p className="text-sm text-muted-foreground">No episodes found yet.</p>
-            ) : null}
-            {searchQuery.isError ? <ErrorText error={searchQuery.error} /> : null}
-            {episodesQuery.isError ? <ErrorText error={episodesQuery.error} /> : null}
-          </CardContent>
-        </Card>
+              <ThemeToggle />
+            </header>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Download Options</CardTitle>
-            <CardDescription>
-              {selectedEpisode
-                ? `${selectedEpisode.mediaTitle} ${formatEpisodeTitle(selectedEpisode)}`
-                : 'Select an episode'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {downloadOptionsQuery.isLoading ? (
-              <ResultSkeleton />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Quality</TableHead>
-                    <TableHead>Provider</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Source URL</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {downloadOptions.map((option) => {
-                    const job = downloadJobByUrl.get(option.providerUrl);
-                    const support = getDownloadSupport(option);
-                    const active = job ? isActiveDownloadStatus(job.status) : false;
+            <Card>
+              <CardHeader>
+                <CardTitle>AniList Search</CardTitle>
+                <CardDescription>Autocomplete is the source of truth for anime metadata.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AnimeAutocomplete
+                  query={animeQuery}
+                  results={animeResults}
+                  loading={animeSearchQuery.isFetching}
+                  selectedId={selectedAnimeId}
+                  onQueryChange={handleAnimeQueryChange}
+                  onSelect={handleAnimeSelect}
+                  onImageFocus={setFocusedImage}
+                />
+                {animeSearchQuery.isError ? <ErrorText error={animeSearchQuery.error} /> : null}
+              </CardContent>
+            </Card>
 
-                    return (
-                      <TableRow key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}>
-                        <TableCell>
-                          <Badge variant="outline">{option.quality}</Badge>
-                        </TableCell>
-                        <TableCell>{formatHostProvider(option.hostProvider)}</TableCell>
-                        <TableCell>
-                          {job ? (
-                            <JobStatusBadge job={job} />
-                          ) : (
-                            <Badge variant={support.supported ? 'secondary' : 'outline'}>
-                              {support.label}
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="max-w-[18rem] truncate font-mono text-xs">
-                          {option.providerUrl}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            disabled={
-                              !support.supported ||
-                              active ||
-                              startDownloadMutation.isPending
-                            }
-                            size="sm"
-                            type="button"
-                            variant={job?.status === 'completed' ? 'outline' : 'default'}
-                            onClick={() => handleDownload(option)}
-                          >
-                            <Download />
-                            {getDownloadButtonLabel(job, support.supported)}
-                          </Button>
-                        </TableCell>
+            {animeDetails ? (
+              <AnimeDetailPanel
+                anime={animeDetails}
+                loading={animeDetailsQuery.isFetching}
+                onImageFocus={setFocusedImage}
+              />
+            ) : null}
+
+            {animeDetails ? (
+              <RelatedAnimeSection
+                relations={animeRelations}
+                selectedAnimeId={selectedAnimeId}
+                onAnimeSelect={handleAnimeSelect}
+              />
+            ) : null}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Episodes</CardTitle>
+                <CardDescription>{selectedMedia ? selectedMedia.title : 'Pick an anime'}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {episodesLoading ? <ResultSkeleton compact /> : null}
+                {!episodesLoading && episodes.length ? (
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    {episodes.map((episode) => (
+                      <EpisodeButton
+                        episode={episode}
+                        key={episode.url}
+                        selected={selectedEpisode?.url === episode.url}
+                        onSelect={() => setSelectedEpisodeUrl(episode.url)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                {!episodesLoading && sourceSearchTerm && !episodes.length ? (
+                  <p className="text-sm text-muted-foreground">No episodes found yet.</p>
+                ) : null}
+                {searchQuery.isError ? <ErrorText error={searchQuery.error} /> : null}
+                {episodesQuery.isError ? <ErrorText error={episodesQuery.error} /> : null}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Download Options</CardTitle>
+                <CardDescription>
+                  {selectedEpisode
+                    ? `${selectedEpisode.mediaTitle} ${formatEpisodeTitle(selectedEpisode)}`
+                    : 'Select an episode'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {downloadOptionsQuery.isLoading ? (
+                  <ResultSkeleton />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Quality</TableHead>
+                        <TableHead>Provider</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Source URL</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-            {downloadOptionsQuery.isError ? <ErrorText error={downloadOptionsQuery.error} /> : null}
-            {startDownloadMutation.isError ? (
-              <ErrorText error={startDownloadMutation.error} />
-            ) : null}
-          </CardContent>
-        </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {downloadOptions.map((option) => {
+                        const job = downloadJobByUrl.get(option.providerUrl);
+                        const support = getDownloadSupport(option);
+                        const active = job ? isActiveDownloadStatus(job.status) : false;
 
-        <DownloadQueue jobs={downloadJobs} loading={downloadJobsQuery.isFetching} />
-      </div>
-      {focusedImage ? (
-        <ImageLightbox image={focusedImage} onClose={() => setFocusedImage(null)} />
-      ) : null}
-    </main>
+                        return (
+                          <TableRow key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}>
+                            <TableCell>
+                              <Badge variant="outline">{option.quality}</Badge>
+                            </TableCell>
+                            <TableCell>{formatHostProvider(option.hostProvider)}</TableCell>
+                            <TableCell>
+                              {job ? (
+                                <JobStatusBadge job={job} />
+                              ) : (
+                                <Badge variant={support.supported ? 'secondary' : 'outline'}>
+                                  {support.label}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="max-w-[18rem] truncate font-mono text-xs">
+                              {option.providerUrl}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                disabled={
+                                  !support.supported ||
+                                  active ||
+                                  startDownloadMutation.isPending
+                                }
+                                size="sm"
+                                type="button"
+                                variant={job?.status === 'completed' ? 'outline' : 'default'}
+                                onClick={() => handleDownload(option)}
+                              >
+                                <Download />
+                                {getDownloadButtonLabel(job, support.supported)}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+                {downloadOptionsQuery.isError ? <ErrorText error={downloadOptionsQuery.error} /> : null}
+                {startDownloadMutation.isError ? (
+                  <ErrorText error={startDownloadMutation.error} />
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <DownloadQueue jobs={downloadJobs} loading={downloadJobsQuery.isFetching} />
+          </div>
+        </div>
+        {focusedImage ? (
+          <ImageLightbox image={focusedImage} onClose={() => setFocusedImage(null)} />
+        ) : null}
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
+
+function ElysiumSidebar({
+  activeItem,
+  onHomeSelect,
+}: {
+  activeItem: string;
+  onHomeSelect: () => void;
+}) {
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarContent className="py-3">
+        <SidebarNavSection
+          activeItem={activeItem}
+          items={MAIN_NAV_ITEMS}
+          label="Home"
+          onHomeSelect={onHomeSelect}
+        />
+        <SidebarNavSection
+          activeItem={activeItem}
+          items={LIBRARY_NAV_ITEMS}
+          label="Library"
+          onHomeSelect={onHomeSelect}
+        />
+      </SidebarContent>
+      <SidebarRail />
+    </Sidebar>
+  );
+}
+
+function SidebarNavSection({
+  activeItem,
+  items,
+  label,
+  onHomeSelect,
+}: {
+  activeItem: string;
+  items: SidebarNavItem[];
+  label: string;
+  onHomeSelect: () => void;
+}) {
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => {
+            const Icon = item.icon;
+            const active = activeItem === item.title;
+
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  aria-current={active ? 'page' : undefined}
+                  isActive={active}
+                  tooltip={item.title}
+                  type="button"
+                  onClick={item.title === 'Home' ? onHomeSelect : undefined}
+                >
+                  <Icon />
+                  <span>{item.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }
 

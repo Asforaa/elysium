@@ -4,6 +4,7 @@ import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { Agentation } from 'agentation';
 import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from 'next-themes';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import './index.css';
 import { routeTree } from './routeTree.gen';
 
@@ -26,8 +27,10 @@ createRoot(document.getElementById('root')!).render(
       storageKey="elysium-theme"
     >
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-        {import.meta.env.DEV ? <Agentation /> : null}
+        <TooltipProvider>
+          <RouterProvider router={router} />
+          {import.meta.env.DEV ? <Agentation /> : null}
+        </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
   </StrictMode>,
