@@ -62,6 +62,7 @@ Frontend:
 - Use TanStack Table for dense lists such as provider options, history, and queues when useful.
 - The frontend talks only to the local backend API.
 - Use shadcn/ui components plainly and as-is.
+- Current shadcn preset is `b5ckPXiR0` (`radix-vega`, zinc base, teal theme, Inter font, lucide icons).
 - Do not add fancy gradients, decorative effects, or bespoke visual styling unless the user explicitly asks.
 - If a custom UI component is needed, compose it from shadcn components and simple `div`/layout elements.
 

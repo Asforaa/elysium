@@ -151,6 +151,7 @@ Persistence:
 UI:
 
 - The frontend is a plain shadcn/ui surface.
+- Current shadcn preset: `b5ckPXiR0` (`radix-vega`, zinc base, teal theme, Inter font, lucide icons).
 - Do not make it fancy by default.
 - Use shadcn components as-is and compose simple custom pieces from those components and normal layout elements.
 
