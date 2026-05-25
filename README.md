@@ -63,6 +63,7 @@ Current app packages:
 
 - `@elysium/web` in `apps/web`
 - `@elysium/api` in `apps/api`
+- `@elysium/shared` in `packages/shared`
 
 Useful commands:
 
@@ -72,6 +73,10 @@ bun run dev
 bun run build
 bun run web:dev
 bun run api:dev
+bun run db:start
+bun run db:ping
+bun run db:stop
+bun run --filter @elysium/api smoke:witanime -- Akane-banashi 5
 ```
 
 Recommended later additions:
@@ -139,6 +144,15 @@ Persistence:
 
 - PostgreSQL stores media cache, discovered options, resolved file metadata, jobs, job attempts, errors, and settings.
 - Store enough data to debug provider breakage without needing to repeat the browser flow every time.
+- Local development uses a project-local Postgres cluster under `.local/postgres`.
+- Default local connection:
+  - `postgresql://asforaa@127.0.0.1:55432/elysium`
+
+UI:
+
+- The frontend is a plain shadcn/ui surface.
+- Do not make it fancy by default.
+- Use shadcn components as-is and compose simple custom pieces from those components and normal layout elements.
 
 ## First Provider Research: WitAnime
 

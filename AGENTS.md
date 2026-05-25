@@ -61,6 +61,9 @@ Frontend:
 - Use TanStack Router if/when app routing is needed.
 - Use TanStack Table for dense lists such as provider options, history, and queues when useful.
 - The frontend talks only to the local backend API.
+- Use shadcn/ui components plainly and as-is.
+- Do not add fancy gradients, decorative effects, or bespoke visual styling unless the user explicitly asks.
+- If a custom UI component is needed, compose it from shadcn components and simple `div`/layout elements.
 
 Backend:
 
@@ -76,6 +79,22 @@ Monorepo:
 - Keep shared internal packages under `packages/*` when they are added.
 - Vercel root config should use Bun commands only.
 - Current frontend Vercel target is `@elysium/web` with output directory `apps/web/dist`.
+- Current shared domain package is `@elysium/shared` in `packages/shared`.
+
+Local database:
+
+- Use the project-local PostgreSQL instance managed by the Bun scripts.
+- Default DB URL is `postgresql://asforaa@127.0.0.1:55432/elysium` on this machine.
+- Start it with `bun run db:start`.
+- Check it with `bun run db:ping`.
+- Stop it with `bun run db:stop`.
+- The data directory lives under `.local/postgres` and must stay untracked.
+
+Provider smoke tests:
+
+- WitAnime CLI smoke test:
+  - `bun run --filter @elysium/api smoke:witanime -- Akane-banashi 5`
+- This should search WitAnime, select the media, decode episodes, decode download options, and print the structured provider URLs.
 
 Architecture rule:
 

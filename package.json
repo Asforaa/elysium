@@ -15,7 +15,11 @@
     "check": "turbo check",
     "test": "turbo test",
     "web:dev": "bun run --filter @elysium/web dev",
-    "api:dev": "bun run --filter @elysium/api start:dev"
+    "api:dev": "bun run --filter @elysium/api start:dev",
+    "db:start": "bun run --filter @elysium/api db:start",
+    "db:status": "bun run --filter @elysium/api db:status",
+    "db:stop": "bun run --filter @elysium/api db:stop",
+    "db:ping": "bun run --filter @elysium/api db:ping"
   },
   "keywords": [],
   "author": "",
