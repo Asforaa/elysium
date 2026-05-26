@@ -4,6 +4,7 @@ import type {
   ComponentProps,
   FormEvent,
   MouseEvent,
+  PointerEvent,
   SyntheticEvent,
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1343,6 +1344,11 @@ type SeekFeedback = {
   seconds: number;
 };
 
+type SeekHoverPreview = {
+  leftPercent: number;
+  timeSeconds: number;
+};
+
 type PlaybackFeedback = {
   action: 'pause' | 'play';
   id: number;
@@ -1372,9 +1378,15 @@ function ElysiumVideoPlayer({
   onTimeUpdate?: VideoElementEventHandler;
 }) {
   const [seekFeedback, setSeekFeedback] = useState<SeekFeedback | null>(null);
+  const [seekHoverPreview, setSeekHoverPreview] =
+    useState<SeekHoverPreview | null>(null);
   const [playbackFeedback, setPlaybackFeedback] =
     useState<PlaybackFeedback | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
   const seekFeedbackTimeoutRef = useRef<number | undefined>(undefined);
+  const seekHoverPreviewFrameRef = useRef<number | undefined>(undefined);
+  const pendingSeekHoverPreviewRef = useRef<SeekHoverPreview | null>(null);
   const playbackFeedbackTimeoutRef = useRef<number | undefined>(undefined);
 
   useEffect(
@@ -1386,9 +1398,55 @@ function ElysiumVideoPlayer({
       if (playbackFeedbackTimeoutRef.current) {
         window.clearTimeout(playbackFeedbackTimeoutRef.current);
       }
+
+      if (seekHoverPreviewFrameRef.current) {
+        window.cancelAnimationFrame(seekHoverPreviewFrameRef.current);
+      }
     },
     [],
   );
+
+  useEffect(() => {
+    if (!seekHoverPreview) {
+      return undefined;
+    }
+
+    const previewVideo = previewVideoRef.current;
+
+    if (!previewVideo) {
+      return undefined;
+    }
+
+    const measuredPreviewVideo = previewVideo;
+    const targetTime = seekHoverPreview.timeSeconds;
+
+    function seekPreviewVideo() {
+      if (!Number.isFinite(targetTime)) {
+        return;
+      }
+
+      try {
+        if (Math.abs(measuredPreviewVideo.currentTime - targetTime) > 0.15) {
+          measuredPreviewVideo.currentTime = targetTime;
+        }
+      } catch {
+        // Some browsers reject rapid preview seeks while metadata is settling.
+      }
+    }
+
+    if (measuredPreviewVideo.readyState >= 1) {
+      seekPreviewVideo();
+      return undefined;
+    }
+
+    measuredPreviewVideo.addEventListener('loadedmetadata', seekPreviewVideo, {
+      once: true,
+    });
+
+    return () => {
+      measuredPreviewVideo.removeEventListener('loadedmetadata', seekPreviewVideo);
+    };
+  }, [seekHoverPreview, src]);
 
   function showSeekFeedback(direction: SeekFeedback['direction']) {
     if (seekFeedbackTimeoutRef.current) {
@@ -1421,6 +1479,30 @@ function ElysiumVideoPlayer({
     }, PLAYBACK_FEEDBACK_TIMEOUT_MS);
   }
 
+  function updateSeekHoverPreview(preview: SeekHoverPreview) {
+    pendingSeekHoverPreviewRef.current = preview;
+
+    if (seekHoverPreviewFrameRef.current) {
+      return;
+    }
+
+    seekHoverPreviewFrameRef.current = window.requestAnimationFrame(() => {
+      seekHoverPreviewFrameRef.current = undefined;
+      setSeekHoverPreview(pendingSeekHoverPreviewRef.current);
+    });
+  }
+
+  function hideSeekHoverPreview() {
+    pendingSeekHoverPreviewRef.current = null;
+
+    if (seekHoverPreviewFrameRef.current) {
+      window.cancelAnimationFrame(seekHoverPreviewFrameRef.current);
+      seekHoverPreviewFrameRef.current = undefined;
+    }
+
+    setSeekHoverPreview(null);
+  }
+
   function handleClickCapture(event: MouseEvent<HTMLDivElement>) {
     const target = event.target;
 
@@ -1438,6 +1520,57 @@ function ElysiumVideoPlayer({
     }
   }
 
+  function handlePointerMoveCapture(event: PointerEvent<HTMLDivElement>) {
+    const target = event.target;
+
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const slider = target.closest<HTMLElement>('.media-time-controls .media-slider');
+
+    if (!slider) {
+      if (seekHoverPreview) {
+        hideSeekHoverPreview();
+      }
+
+      return;
+    }
+
+    const duration = videoRef.current?.duration;
+
+    if (!duration || !Number.isFinite(duration) || duration <= 0) {
+      if (seekHoverPreview) {
+        hideSeekHoverPreview();
+      }
+
+      return;
+    }
+
+    const sliderRect = slider.getBoundingClientRect();
+
+    if (sliderRect.width <= 0) {
+      return;
+    }
+
+    const pointerRatio = clamp(
+      (event.clientX - sliderRect.left) / sliderRect.width,
+      0,
+      1,
+    );
+
+    updateSeekHoverPreview({
+      leftPercent: clamp(pointerRatio * 100, 8, 92),
+      timeSeconds: duration * pointerRatio,
+    });
+  }
+
+  function handlePointerLeaveCapture() {
+    if (seekHoverPreview) {
+      hideSeekHoverPreview();
+    }
+  }
+
   function handlePause(event: SyntheticEvent<HTMLVideoElement>) {
     onPause?.(event);
 
@@ -1452,7 +1585,12 @@ function ElysiumVideoPlayer({
 
   return (
     <ELYSIUM_VIDEO_PLAYER.Provider key={src}>
-      <div className="relative h-full w-full" onClickCapture={handleClickCapture}>
+      <div
+        className="relative h-full w-full"
+        onClickCapture={handleClickCapture}
+        onPointerLeave={handlePointerLeaveCapture}
+        onPointerMoveCapture={handlePointerMoveCapture}
+      >
         <VideoSkin
           className="h-full w-full"
           poster={poster}
@@ -1467,6 +1605,7 @@ function ElysiumVideoPlayer({
             key={src}
             playsInline
             preload="metadata"
+            ref={videoRef}
             src={src}
             onEnded={onEnded}
             onLoadedMetadata={onLoadedMetadata}
@@ -1477,11 +1616,57 @@ function ElysiumVideoPlayer({
           {playbackFeedback ? (
             <ElysiumPlaybackFeedback feedback={playbackFeedback} />
           ) : null}
+          {seekHoverPreview ? (
+            <ElysiumSeekHoverPreview
+              poster={poster}
+              preview={seekHoverPreview}
+              previewVideoRef={previewVideoRef}
+              src={src}
+            />
+          ) : null}
           {nowPlaying ? <ElysiumPlayerNowPlaying nowPlaying={nowPlaying} /> : null}
           {seekFeedback ? <ElysiumSeekFeedback feedback={seekFeedback} /> : null}
         </VideoSkin>
       </div>
     </ELYSIUM_VIDEO_PLAYER.Provider>
+  );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function ElysiumSeekHoverPreview({
+  poster,
+  preview,
+  previewVideoRef,
+  src,
+}: {
+  poster?: string;
+  preview: SeekHoverPreview;
+  previewVideoRef: { current: HTMLVideoElement | null };
+  src: string;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="elysium-seek-hover-preview"
+      style={{ left: `${preview.leftPercent}%` }}
+    >
+      <div className="elysium-seek-hover-preview__frame">
+        <video
+          muted
+          playsInline
+          poster={poster}
+          preload="metadata"
+          ref={previewVideoRef}
+          src={src}
+        />
+      </div>
+      <time className="elysium-seek-hover-preview__time">
+        {formatDuration(preview.timeSeconds)}
+      </time>
+    </div>
   );
 }
 
