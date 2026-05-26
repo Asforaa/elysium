@@ -1,43 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import type {
   AnimeMetadataSeason,
   AnimeMetadataSearchResult,
   AnimeMetadataSearchSort,
-  DownloadedAnime,
   DownloadJob,
   DownloadOption,
   EpisodeSummary,
-  LocalMediaFile,
-  MediaSearchResult,
   PlaybackProgress,
-  StreamingOption,
 } from "@elysium/shared";
-import {
-  deleteDownloadJob,
-  deleteLocalMediaFile,
-  getAnimeMetadata,
-  getDownloadOptions,
-  getEpisodes,
-  listAnimeAiringSchedule,
-  getStreamingOptions,
-  listDownloadedAnime,
-  listContinueWatching,
-  listLocalMediaFiles,
-  listDownloadJobs,
-  retryDownload,
-  searchAnimeMetadata,
-  searchAnimeMetadataPage,
-  searchMedia,
-  startDownload,
-} from "@/lib/api";
 import {
   DEFAULT_ANIME_SEARCH_SORT,
   toAnimeSearchSortUrlValue,
@@ -60,7 +32,6 @@ import type {
   FocusedImage,
   MediaHomeRoute,
   SidebarItemTitle,
-  StartDownloadInput,
 } from "@/app/types";
 import {
   AccountControls,
@@ -98,21 +69,18 @@ import {
   getCurrentAnimeSeason,
   getCurrentlyWatchingAnimeIds,
   getLocalFilesForEpisode,
-  hasDetails,
   normalizeEpisodeNumber,
-  refetchLocalLibraryQueries,
   slugFromTitle,
   toAnimeSlug,
 } from "@/lib/media-ui";
+import { useAnimeDetails } from "@/features/anime/use-anime-details";
+import { useAnimeHome } from "@/features/anime/use-anime-home";
+import { useAnimeSearch } from "@/features/anime/use-anime-search";
+import { useDownloads } from "@/features/downloads/use-downloads";
+import { useLocalLibrary } from "@/features/library/use-local-library";
+import { useContinueWatching } from "@/features/player/use-continue-watching";
+import { useSourceEpisodeData } from "@/features/source-adapters/use-source-episode-data";
 
-const EMPTY_ANIME_RESULTS: AnimeMetadataSearchResult[] = [];
-const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
-const EMPTY_EPISODES: EpisodeSummary[] = [];
-const EMPTY_DOWNLOAD_JOBS: DownloadJob[] = [];
-const EMPTY_LOCAL_MEDIA_FILES: LocalMediaFile[] = [];
-const EMPTY_DOWNLOADED_ANIME: DownloadedAnime[] = [];
-const EMPTY_STREAMING_OPTIONS: StreamingOption[] = [];
-const EMPTY_PLAYBACK_PROGRESS: PlaybackProgress[] = [];
 function App({
   animeSearchQuery: routeAnimeSearchQuery = "",
   animeSearchRoute = false,
@@ -142,7 +110,6 @@ function App({
   routeAnimeSlug?: string;
 }) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [animeQuery, setAnimeQuery] = useState(routeAnimeSearchQuery);
   const [animeSearchSort, setAnimeSearchSort] =
     useState<AnimeMetadataSearchSort>(routeAnimeSearchSort);
@@ -199,222 +166,64 @@ function App({
     },
   );
 
-  const animeMetadataSearchQuery = useInfiniteQuery({
-    queryKey: [
-      "metadata",
-      "anilist",
-      "search",
-      trimmedAnimeQuery,
-      animeSearchSort,
-      routeAnimeSearchSeason,
-      routeAnimeSearchSeasonYear,
-    ],
-    queryFn: ({ pageParam }) =>
-      searchAnimeMetadataPage(trimmedAnimeQuery, {
-        page: Number(pageParam),
-        perPage: 24,
-        season: routeAnimeSearchSeason,
-        seasonYear: routeAnimeSearchSeasonYear,
-        sort: animeSearchSort,
-      }),
-    enabled: showingAnimeSearch,
-    getNextPageParam: (lastPage) =>
-      lastPage.hasNextPage ? lastPage.page + 1 : undefined,
-    initialPageParam: 1,
-    staleTime: 60_000,
+  const { results: animeResults, searchQuery: animeMetadataSearchQuery } =
+    useAnimeSearch({
+      enabled: showingAnimeSearch,
+      query: trimmedAnimeQuery,
+      season: routeAnimeSearchSeason,
+      seasonYear: routeAnimeSearchSeasonYear,
+      sort: animeSearchSort,
+    });
+  const {
+    anime: animeDetails,
+    detailsQuery: animeDetailsQuery,
+    relations: animeRelations,
+    sourceSearchTerm,
+  } = useAnimeDetails(selectedAnimeId);
+  const {
+    downloadOptions,
+    downloadOptionsQuery,
+    episodes,
+    episodesLoading,
+    episodesQuery,
+    searchQuery,
+    selectedEpisode,
+    selectedMedia,
+    streamingOptions,
+    streamingOptionsQuery,
+  } = useSourceEpisodeData({
+    routeEpisodeNumber,
+    selectedEpisodeUrl,
+    sourceSearchTerm,
   });
-
-  const animeResults = useMemo(
-    () =>
-      animeMetadataSearchQuery.data?.pages.flatMap((page) => page.items) ??
-      EMPTY_ANIME_RESULTS,
-    [animeMetadataSearchQuery.data],
-  );
-  const activeAnimeId = selectedAnimeId;
-
-  const animeDetailsQuery = useQuery({
-    queryKey: ["metadata", "anilist", "anime", activeAnimeId],
-    queryFn: () => getAnimeMetadata(activeAnimeId ?? 0),
-    enabled: Boolean(activeAnimeId),
-    staleTime: 5 * 60_000,
-  });
-
-  const animeDetails = animeDetailsQuery.data;
-  const sourceSearchTerm =
-    selectedAnimeId && animeDetails ? animeDetails.sourceSearchTitle : "";
-  const animeRelations =
-    animeDetails && hasDetails(animeDetails)
-      ? (animeDetails.relations ?? [])
-      : [];
-
-  const searchQuery = useQuery({
-    queryKey: ["search", sourceSearchTerm],
-    queryFn: () => searchMedia(sourceSearchTerm),
-    enabled: Boolean(sourceSearchTerm),
-  });
-
-  const searchResults = searchQuery.data ?? EMPTY_SEARCH_RESULTS;
-  const selectedMedia = searchResults[0];
-
-  const episodesQuery = useQuery({
-    queryKey: ["episodes", selectedMedia?.sourceProvider, selectedMedia?.url],
-    queryFn: () => {
-      if (!selectedMedia) {
-        throw new Error("Missing selected media");
-      }
-
-      return getEpisodes(selectedMedia.sourceProvider, selectedMedia.url);
-    },
-    enabled: Boolean(selectedMedia?.url),
-  });
-
-  const episodes = episodesQuery.data ?? EMPTY_EPISODES;
-  const selectedEpisode = useMemo(() => {
-    if (routeEpisodeNumber) {
-      return episodes.find(
-        (episode) =>
-          normalizeEpisodeNumber(episode.number) ===
-          normalizeEpisodeNumber(routeEpisodeNumber),
-      );
-    }
-
-    return selectedEpisodeUrl
-      ? episodes.find((episode) => episode.url === selectedEpisodeUrl)
-      : undefined;
-  }, [episodes, selectedEpisodeUrl, routeEpisodeNumber]);
-
-  const downloadOptionsQuery = useQuery({
-    queryKey: [
-      "download-options",
-      selectedEpisode?.sourceProvider,
-      selectedEpisode?.url,
-    ],
-    queryFn: () => {
-      if (!selectedEpisode) {
-        throw new Error("Missing selected episode");
-      }
-
-      return getDownloadOptions(
-        selectedEpisode.sourceProvider,
-        selectedEpisode.url,
-      );
-    },
-    enabled: Boolean(selectedEpisode?.url),
-  });
-
-  const downloadOptions = downloadOptionsQuery.data ?? [];
-  const streamingOptionsQuery = useQuery({
-    queryKey: [
-      "streaming-options",
-      selectedEpisode?.sourceProvider,
-      selectedEpisode?.url,
-    ],
-    queryFn: () => {
-      if (!selectedEpisode) {
-        throw new Error("Missing selected episode");
-      }
-
-      return getStreamingOptions(
-        selectedEpisode.sourceProvider,
-        selectedEpisode.url,
-      );
-    },
-    enabled: Boolean(selectedEpisode?.url),
-  });
-  const streamingOptions =
-    streamingOptionsQuery.data ?? EMPTY_STREAMING_OPTIONS;
-  const episodesLoading = searchQuery.isLoading || episodesQuery.isLoading;
-  const downloadJobsQuery = useQuery({
-    queryKey: ["downloads"],
-    queryFn: listDownloadJobs,
-    refetchInterval: 1_000,
-  });
-  const localMediaFilesQuery = useQuery({
-    queryKey: ["library", "files"],
-    queryFn: listLocalMediaFiles,
-    refetchInterval: 5_000,
-  });
-  const downloadJobs = downloadJobsQuery.data ?? EMPTY_DOWNLOAD_JOBS;
-  const localMediaFiles = localMediaFilesQuery.data ?? EMPTY_LOCAL_MEDIA_FILES;
-  const downloadedAnimeQuery = useQuery({
-    queryKey: ["library", "anime"],
-    queryFn: listDownloadedAnime,
-    refetchInterval: 5_000,
-  });
-  const downloadedAnime = downloadedAnimeQuery.data ?? EMPTY_DOWNLOADED_ANIME;
-  const continueWatchingQuery = useQuery({
-    queryKey: ["playback", "continue-watching"],
-    queryFn: listContinueWatching,
-    refetchInterval: 10_000,
-  });
-  const continueWatching =
-    continueWatchingQuery.data ?? EMPTY_PLAYBACK_PROGRESS;
+  const {
+    deleteDownloadJobMutation,
+    downloadJobByUrl,
+    downloadJobs,
+    downloadJobsQuery,
+    retryDownloadMutation,
+    startDownloadMutation,
+  } = useDownloads();
+  const { downloadedAnime, downloadedAnimeQuery, localMediaFiles } =
+    useLocalLibrary();
+  const { continueWatching, continueWatchingQuery } = useContinueWatching();
   const currentlyWatchingAnimeIds = useMemo(
     () => getCurrentlyWatchingAnimeIds(continueWatching, localMediaFiles),
     [continueWatching, localMediaFiles],
   );
-  const newPopularQuery = useQuery({
-    queryKey: [
-      "metadata",
-      "anilist",
-      "home",
-      "new-popular",
-      currentAnimeSeason.season,
-      currentAnimeSeason.year,
-    ],
-    queryFn: () =>
-      searchAnimeMetadata("", {
-        season: currentAnimeSeason.season,
-        seasonYear: currentAnimeSeason.year,
-        sort: "popularity",
-      }),
-    enabled: showingHomeRoute || animeHomeEnabled,
-    staleTime: 5 * 60_000,
+  const {
+    currentlyWatchingAiringEpisodes,
+    currentlyWatchingAiringQuery,
+    latestAiringEpisodes,
+    latestAiringQuery,
+    newPopularAnime,
+    newPopularQuery,
+  } = useAnimeHome({
+    animeHomeEnabled,
+    currentSeason: currentAnimeSeason,
+    currentlyWatchingAnimeIds,
+    homeEnabled: showingHomeRoute,
   });
-  const newPopularAnime = newPopularQuery.data ?? EMPTY_ANIME_RESULTS;
-  const latestAiringQuery = useInfiniteQuery({
-    queryKey: ["metadata", "anilist", "airing-schedule", "latest"],
-    queryFn: ({ pageParam }) =>
-      listAnimeAiringSchedule({
-        page: Number(pageParam),
-        perPage: 24,
-      }),
-    enabled: animeHomeEnabled,
-    getNextPageParam: (lastPage) =>
-      lastPage.hasNextPage ? lastPage.page + 1 : undefined,
-    initialPageParam: 1,
-    staleTime: 60_000,
-  });
-  const currentlyWatchingAiringQuery = useInfiniteQuery({
-    queryKey: [
-      "metadata",
-      "anilist",
-      "airing-schedule",
-      "currently-watching",
-      currentlyWatchingAnimeIds.join(","),
-    ],
-    queryFn: ({ pageParam }) =>
-      listAnimeAiringSchedule({
-        mediaIds: currentlyWatchingAnimeIds,
-        page: Number(pageParam),
-        perPage: 12,
-      }),
-    enabled: animeHomeEnabled && currentlyWatchingAnimeIds.length > 0,
-    getNextPageParam: (lastPage) =>
-      lastPage.hasNextPage ? lastPage.page + 1 : undefined,
-    initialPageParam: 1,
-    staleTime: 60_000,
-  });
-  const latestAiringEpisodes = useMemo(
-    () => latestAiringQuery.data?.pages.flatMap((page) => page.items) ?? [],
-    [latestAiringQuery.data],
-  );
-  const currentlyWatchingAiringEpisodes = useMemo(
-    () =>
-      currentlyWatchingAiringQuery.data?.pages.flatMap((page) => page.items) ??
-      [],
-    [currentlyWatchingAiringQuery.data],
-  );
   const selectedEpisodeFiles = useMemo(
     () =>
       getLocalFilesForEpisode({
@@ -425,43 +234,6 @@ function App({
       }),
     [localMediaFiles, routeEpisodeNumber, selectedAnimeId, selectedEpisode],
   );
-  const downloadJobByUrl = useMemo(() => {
-    const jobs = new Map<string, DownloadJob>();
-
-    for (const job of downloadJobs) {
-      if (!jobs.has(job.option.providerUrl)) {
-        jobs.set(job.option.providerUrl, job);
-      }
-    }
-
-    return jobs;
-  }, [downloadJobs]);
-  const startDownloadMutation = useMutation({
-    mutationFn: ({ mediaContext, option }: StartDownloadInput) =>
-      startDownload(option, mediaContext),
-    onSuccess: () => {
-      void refetchLocalLibraryQueries(queryClient);
-    },
-  });
-  const retryDownloadMutation = useMutation({
-    mutationFn: retryDownload,
-    onSuccess: () => {
-      void refetchLocalLibraryQueries(queryClient);
-    },
-  });
-  const deleteDownloadJobMutation = useMutation({
-    mutationFn: deleteDownloadJob,
-    onSuccess: () => {
-      void refetchLocalLibraryQueries(queryClient);
-    },
-  });
-  const deleteLocalFileMutation = useMutation({
-    mutationFn: deleteLocalMediaFile,
-    onSuccess: () => {
-      void refetchLocalLibraryQueries(queryClient);
-    },
-  });
-
   function handleAnimeQueryChange(value: string) {
     setAnimeSearchFocusTick((tick) => tick + 1);
     setAnimeQuery(value);
@@ -577,23 +349,6 @@ function App({
         selectedEpisode,
       ),
       option,
-    });
-  }
-
-  function handleLocalEpisodeSelect(file: LocalMediaFile) {
-    if (!file.metadataId || !file.episodeNumber) {
-      return;
-    }
-
-    void navigate({
-      params: {
-        animeId: String(file.metadataId),
-        episodeNumber: file.episodeNumber,
-        slug: slugFromTitle(
-          file.displayTitle ?? file.sourceMediaTitle ?? file.filename,
-        ),
-      },
-      to: "/anime/$animeId/$slug/episode/$episodeNumber",
     });
   }
 
@@ -728,19 +483,8 @@ function App({
             {downloadsRoute ? (
               <DownloadsPage
                 anime={downloadedAnime}
-                jobs={downloadJobs}
                 loading={downloadedAnimeQuery.isFetching}
-                mutating={
-                  deleteDownloadJobMutation.isPending ||
-                  deleteLocalFileMutation.isPending ||
-                  retryDownloadMutation.isPending
-                }
-                onDeleteFile={(file) => deleteLocalFileMutation.mutate(file.id)}
-                onDeleteJob={(job) => deleteDownloadJobMutation.mutate(job.id)}
-                onEpisodeSelect={(_anime, file) =>
-                  handleLocalEpisodeSelect(file)
-                }
-                onRetryJob={(job) => retryDownloadMutation.mutate(job.id)}
+                onAnimeSelect={handleAnimeSelect}
               />
             ) : null}
 

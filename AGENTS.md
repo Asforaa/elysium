@@ -85,6 +85,7 @@ Frontend:
 - Autocomplete selection and related-anime selection should navigate to the anime route, then let the route-driven page fetch AniList metadata and source-adapter matches.
 - Run `bun run --filter @elysium/web routes:generate` when route files change, and commit the generated `src/routeTree.gen.ts`.
 - Frontend routes use a Next-like folder convention on top of TanStack Router: `page.tsx` is the index/page token, `route.tsx` is for layout routes, and route-local non-route helper files under `src/routes` must be prefixed with `-`.
+- React Query server-state hooks should live under `apps/web/src/features/<domain>/`; `App.tsx` should stay a route/layout orchestrator and should not own raw API query bodies.
 
 Backend:
 
