@@ -164,6 +164,7 @@ Homeserver media:
   - It is dry-run/read-only for media files.
   - It writes private rename manifests under ignored `/docs/rename-plans`.
   - It should have `0` target collisions and `0` existing target conflicts before any future apply step is considered.
+  - It must not treat decimal episodes, OVA/special labels, or standalone anime-series extras as final truth by filename alone; these must be verified against MyAnimeList episode data before any apply step.
 
 Portless:
 
@@ -198,6 +199,7 @@ Provider smoke tests:
 - Media rename planner:
   - `bun run --filter @elysium/api library:plan-renames`
 - This should generate a read-only file move manifest using the latest AniList match report, with Elysium-owned IDs in top-level entity folders and canonical filenames such as `Title - EP 01 - FHD.mp4`, `Title - Movie - HD.mp4`, `Title - OVA 01.mp4`, and `Title - Special 01.mp4`.
+- Any action marked `mal-episode-list-verification-required` is provisional. A future apply step must refuse to move those files until a MyAnimeList episode-list verification pass confirms the numbering/kind.
 
 Private docs:
 

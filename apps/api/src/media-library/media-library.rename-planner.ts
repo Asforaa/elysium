@@ -37,6 +37,7 @@ export interface MediaLibraryRenamePlan {
     animeMatchedFiles: number;
     existingTargetConflicts: number;
     files: number;
+    malEpisodeVerificationRequired: number;
     moves: number;
     notes: number;
     reviewOnly: number;
@@ -199,6 +200,9 @@ class RenamePlanner {
       ...(!match && isAnimeCategory(file.category)
         ? ['missing-anilist-match']
         : []),
+      ...(requiresMalEpisodeVerification(file, match)
+        ? ['mal-episode-list-verification-required']
+        : []),
       ...(!isAnimeCategory(file.category)
         ? ['metadata-provider-not-yet-linked']
         : []),
@@ -331,6 +335,12 @@ class RenamePlanner {
       return `${title} - ${specialToken}${qualitySuffix}${extension}`;
     }
 
+    const unnumberedSpecialToken = standaloneSpecialToken(file);
+
+    if (unnumberedSpecialToken) {
+      return `${title} - ${unnumberedSpecialToken}${qualitySuffix}${extension}`;
+    }
+
     const fractionalEpisodeToken = decimalEpisodeToken(file);
 
     if (fractionalEpisodeToken) {
@@ -414,6 +424,9 @@ function summarizePlan({
         action.issues.includes('target-already-exists'),
       ).length,
       files: actions.length,
+      malEpisodeVerificationRequired: actions.filter((action) =>
+        action.issues.includes('mal-episode-list-verification-required'),
+      ).length,
       moves: actions.filter((action) => action.action === 'move-file').length,
       notes: actions.filter((action) => action.fileKind === 'note').length,
       reviewOnly: actions.filter((action) => action.action === 'review-only')
@@ -446,6 +459,7 @@ function buildRenamePlanMarkdown(plan: MediaLibraryRenamePlan) {
     `- Planned moves: \`${plan.summary.moves}\``,
     `- Review-only files: \`${plan.summary.reviewOnly}\``,
     `- AniList matched files: \`${plan.summary.animeMatchedFiles}\``,
+    `- MAL episode verification required: \`${plan.summary.malEpisodeVerificationRequired}\``,
     `- Target collisions: \`${plan.summary.targetCollisions}\``,
     `- Existing target conflicts: \`${plan.summary.existingTargetConflicts}\``,
     '',
@@ -510,12 +524,44 @@ function isEpisodeLike(file: MediaLibraryScanFile, match?: LocalAnimeMatch) {
   return format === 'TV' || format === 'ONA';
 }
 
+function requiresMalEpisodeVerification(
+  file: MediaLibraryScanFile,
+  match?: LocalAnimeMatch,
+) {
+  if (
+    file.fileKind !== 'video' ||
+    !isAnimeCategory(file.category) ||
+    !match?.bestMatch?.idMal
+  ) {
+    return false;
+  }
+
+  if (specialEpisodeToken(file) || decimalEpisodeToken(file)) {
+    return true;
+  }
+
+  if (
+    file.category === 'anime-series' &&
+    file.parsedEpisodeNumber === undefined
+  ) {
+    return true;
+  }
+
+  const format = match.bestMatch.format;
+
+  return format === 'OVA' || format === 'SPECIAL';
+}
+
 function standaloneQualifier(
   file: MediaLibraryScanFile,
   entity: PlannedEntity,
   match?: LocalAnimeMatch,
 ) {
   if (file.category === 'anime-movie' || file.category === 'movie') {
+    return 'Movie';
+  }
+
+  if (match?.bestMatch?.format === 'MOVIE') {
     return 'Movie';
   }
 
@@ -579,6 +625,24 @@ function specialEpisodeToken(file: MediaLibraryScanFile) {
 
   if (path.includes('حلقة خاصة')) {
     return `Special ${pad2(file.parsedEpisodeNumber)}`;
+  }
+
+  return undefined;
+}
+
+function standaloneSpecialToken(file: MediaLibraryScanFile) {
+  if (file.parsedEpisodeNumber !== undefined) {
+    return undefined;
+  }
+
+  const path = file.relativePath.toLowerCase();
+
+  if (/\bova\b/iu.test(path) || path.includes('اوفا')) {
+    return 'OVA';
+  }
+
+  if (/\bspecial\b/iu.test(path) || path.includes('حلقة خاصة')) {
+    return 'Special';
   }
 
   return undefined;
