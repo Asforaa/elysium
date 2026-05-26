@@ -8,7 +8,9 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import ReactPlayer from 'react-player';
+import { createPlayer } from '@videojs/react';
+import { Video, VideoSkin, videoFeatures } from '@videojs/react/video';
+import '@videojs/react/video/skin.css';
 import {
   Clapperboard,
   ChevronDown,
@@ -157,6 +159,7 @@ const EMPTY_LOCAL_MEDIA_FILES: LocalMediaFile[] = [];
 const EMPTY_DOWNLOADED_ANIME: DownloadedAnime[] = [];
 const EMPTY_STREAMING_OPTIONS: StreamingOption[] = [];
 const EMPTY_PLAYBACK_PROGRESS: PlaybackProgress[] = [];
+const ELYSIUM_VIDEO_PLAYER = createPlayer({ features: videoFeatures });
 const PROFILE_PHOTO_SIZE = 256;
 const PROFILE_PHOTO_QUALITY = 0.82;
 const MAX_PROFILE_PHOTO_SOURCE_BYTES = 10 * 1024 * 1024;
@@ -1305,6 +1308,50 @@ function EmptyRoutePage({ title }: { title: SidebarItemTitle }) {
   );
 }
 
+type VideoElementEventHandler = ComponentProps<'video'>['onTimeUpdate'];
+
+function ElysiumVideoPlayer({
+  poster,
+  src,
+  onEnded,
+  onLoadedMetadata,
+  onPause,
+  onTimeUpdate,
+}: {
+  poster?: string;
+  src: string;
+  onEnded?: VideoElementEventHandler;
+  onLoadedMetadata?: VideoElementEventHandler;
+  onPause?: VideoElementEventHandler;
+  onTimeUpdate?: VideoElementEventHandler;
+}) {
+  return (
+    <ELYSIUM_VIDEO_PLAYER.Provider>
+      <VideoSkin
+        className="h-full w-full"
+        poster={poster}
+        style={
+          {
+            '--media-border-radius': '0.375rem',
+            '--media-video-border-radius': '0.375rem',
+          } as ComponentProps<typeof VideoSkin>['style']
+        }
+      >
+        <Video
+          key={src}
+          playsInline
+          preload="metadata"
+          src={src}
+          onEnded={onEnded}
+          onLoadedMetadata={onLoadedMetadata}
+          onPause={onPause}
+          onTimeUpdate={onTimeUpdate}
+        />
+      </VideoSkin>
+    </ELYSIUM_VIDEO_PLAYER.Provider>
+  );
+}
+
 function EpisodeWatchPanel({
   anime,
   episode,
@@ -1443,11 +1490,13 @@ function EpisodeWatchPanel({
         {selectedLocalFile ? (
           <>
             <div className="aspect-video overflow-hidden rounded-md bg-black">
-              <ReactPlayer
-                controls
-                height="100%"
+              <ElysiumVideoPlayer
+                poster={
+                  anime.bannerImage ??
+                  anime.coverImage?.extraLarge ??
+                  anime.coverImage?.large
+                }
                 src={getLocalMediaStreamUrl(selectedLocalFile.id)}
-                width="100%"
                 onEnded={(event) => saveLocalProgress(event, true, true)}
                 onLoadedMetadata={restoreLocalProgress}
                 onPause={(event) => saveLocalProgress(event, false, true)}
