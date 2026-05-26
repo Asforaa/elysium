@@ -445,4 +445,34 @@ const DATABASE_MIGRATIONS = [
       `,
     ],
   },
+  {
+    id: '006_media_library_playback_fields',
+    statements: [
+      `
+        alter table media_entities
+          add column if not exists source_search_title text,
+          add column if not exists cover_image_url text,
+          add column if not exists banner_image_url text,
+          add column if not exists metadata jsonb not null default '{}'::jsonb
+      `,
+      `
+        alter table media_library_files
+          add column if not exists episode_title text,
+          add column if not exists episode_number text,
+          add column if not exists sort_order double precision,
+          add column if not exists quality text,
+          add column if not exists host_provider text,
+          add column if not exists media_context jsonb,
+          add column if not exists metadata jsonb not null default '{}'::jsonb
+      `,
+      `
+        create index if not exists media_library_files_episode_idx
+          on media_library_files (media_entity_id, episode_number)
+      `,
+      `
+        create index if not exists media_library_files_sort_idx
+          on media_library_files (media_entity_id, sort_order)
+      `,
+    ],
+  },
 ];

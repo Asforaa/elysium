@@ -84,6 +84,7 @@ Frontend:
 - Treat the AniList numeric ID as the route source of truth. The slug is only for readable URLs and should not be required for lookups.
 - Autocomplete selection and related-anime selection should navigate to the anime route, then let the route-driven page fetch AniList metadata and source-adapter matches.
 - Run `bun run --filter @elysium/web routes:generate` when route files change, and commit the generated `src/routeTree.gen.ts`.
+- Frontend routes use a Next-like folder convention on top of TanStack Router: `page.tsx` is the index/page token, `route.tsx` is for layout routes, and route-local non-route helper files under `src/routes` must be prefixed with `-`.
 
 Backend:
 
@@ -178,6 +179,12 @@ Homeserver media:
   - `bun run --filter @elysium/api library:rollback-renames`
   - It is dry-run by default and writes rollback reports under ignored `/docs/rename-rollbacks`.
   - It uses an executed apply manifest as the rollback source and restores moved files only with `--execute`.
+- Renamed media library DB import CLI:
+  - `bun run --filter @elysium/api library:import-renamed`
+  - It reads the latest approved rename plan by default and seeds the already-renamed filesystem into PostgreSQL.
+  - It imports video files into `media_library_files`, entities into `media_entities`, provider IDs into `media_external_ids`, and source notes into `media_library_notes`.
+  - It does not move, rename, delete, or rewrite media files.
+  - `/library/files`, `/library/anime`, and `/library/files/:id/stream` should read imported `media_library_files` together with newly downloaded `local_media_files`.
 
 Portless:
 
@@ -221,6 +228,16 @@ Provider smoke tests:
 - Media rename rollback:
   - `bun run --filter @elysium/api library:rollback-renames`
 - This should remain dry-run unless `--execute` is passed and should use the executed apply manifest as its source of truth.
+- Renamed media library import:
+  - `bun run --filter @elysium/api library:import-renamed`
+- This should seed the renamed homeserver library into the newer media-library tables and write private reports under ignored `/docs/library-imports`.
+- Current imported playback model:
+  - local imported rows are exposed as `LocalMediaFile` objects with synthetic `downloadJobId` values
+  - `hostProvider` is `local-library`
+  - `metadataProvider`/`metadataId` point to AniList when known
+  - provider IDs stay in `media_external_ids`
+  - imported media files are read-only from the downloads delete API
+  - imported non-episode extras keep human labels in `episodeTitle` but expose numeric `episodeNumber` values so the current episode route/player matcher can select them
 
 Private docs:
 
