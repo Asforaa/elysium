@@ -759,14 +759,17 @@ function App({
             !showingAnimeSearch &&
             animeDetails ? (
               <DownloadOptionsStepper
+                anime={animeDetails}
                 downloadOptions={downloadOptions}
                 downloadOptionsError={downloadOptionsQuery.error}
                 downloadOptionsLoading={downloadOptionsQuery.isLoading}
+                episode={selectedEpisode}
                 downloadJobByUrl={downloadJobByUrl}
                 mutating={
                   startDownloadMutation.isPending ||
                   retryDownloadMutation.isPending
                 }
+                routeEpisodeNumber={routeEpisodeNumber}
                 retryError={retryDownloadMutation.error}
                 startError={startDownloadMutation.error}
                 onDownload={handleDownload}
@@ -1606,23 +1609,6 @@ function EpisodeWatchPanel({
 
         {selectedLocalFile ? (
           <>
-            {playbackProgressQuery.data &&
-            !playbackProgressQuery.data.completed ? (
-              <div className="space-y-1">
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full bg-primary"
-                    style={{
-                      width: `${getPlaybackProgressPercent(playbackProgressQuery.data)}%`,
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Resume point:{' '}
-                  {formatDuration(playbackProgressQuery.data.positionSeconds)}
-                </p>
-              </div>
-            ) : null}
             {localFiles.length > 1 ? (
               <div className="flex flex-wrap gap-2">
                 {localFiles.map((file) => (
@@ -1752,20 +1738,26 @@ function EpisodeDrawerButton({
 }
 
 function DownloadOptionsStepper({
+  anime,
   downloadOptions,
   downloadOptionsError,
   downloadOptionsLoading,
+  episode,
   downloadJobByUrl,
   mutating,
+  routeEpisodeNumber,
   retryError,
   startError,
   onDownload,
 }: {
+  anime: AnimeMetadataDetails;
   downloadOptions: DownloadOption[];
   downloadOptionsError: Error | null;
   downloadOptionsLoading: boolean;
+  episode: EpisodeSummary | undefined;
   downloadJobByUrl: Map<string, DownloadJob>;
   mutating: boolean;
+  routeEpisodeNumber?: string;
   retryError: Error | null;
   startError: Error | null;
   onDownload: (option: DownloadOption, job?: DownloadJob) => void;
@@ -1796,6 +1788,7 @@ function DownloadOptionsStepper({
     ? isActiveDownloadStatus(selectedJob.status)
     : false;
   const selectedCompleted = selectedJob?.status === 'completed';
+  const selectedOptionSupported = selectedSupport?.supported ?? false;
 
   useEffect(
     () => () => {
@@ -1839,7 +1832,7 @@ function DownloadOptionsStepper({
 
     onDownload(selectedOption, selectedJob);
     setSuccessMessage(
-      `${formatHostProvider(selectedOption.hostProvider)} ${selectedOption.qualityLabel} request sent.`,
+      `${formatHostProvider(selectedOption.hostProvider)} ${getDownloadQualityLabel(selectedOption.quality)} request sent.`,
     );
 
     if (resetTimerRef.current) {
@@ -1857,7 +1850,10 @@ function DownloadOptionsStepper({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Download locally</CardTitle>
+        <CardTitle>
+          Download {formatDownloadEpisodeReference(episode, routeEpisodeNumber)} of{' '}
+          {anime.displayTitle} locally
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {downloadOptionsLoading ? <ResultSkeleton compact /> : null}
@@ -1879,7 +1875,7 @@ function DownloadOptionsStepper({
                     variant={selected ? 'default' : 'secondary'}
                     onClick={() => handleQualitySelect(group.quality)}
                   >
-                    {group.label}
+                    {getDownloadQualityLabel(group.quality)}
                   </Button>
                 );
               })}
@@ -1889,19 +1885,20 @@ function DownloadOptionsStepper({
               <div className="space-y-3">
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   {selectedGroup.options.map((option) => {
-                    const job = downloadJobByUrl.get(option.providerUrl);
                     const support = getDownloadSupport(option);
                     const selected = option.providerUrl === selectedProviderUrl;
 
                     return (
-                      <button
+                      <Button
                         className={cn(
-                          'flex min-h-14 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-opacity hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                          selected && 'border-primary bg-primary/10 text-primary',
+                          'justify-start transition-opacity',
+                          selected && 'ring-2 ring-primary/40',
                           selectedProviderUrl && !selected && 'opacity-45',
                         )}
+                        disabled={!support.supported}
                         key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}
                         type="button"
+                        variant="secondary"
                         onClick={() => {
                           setSuccessMessage(null);
                           setSelectedProviderUrl((current) =>
@@ -1915,45 +1912,24 @@ function DownloadOptionsStepper({
                             {formatHostProvider(option.hostProvider)}
                           </span>
                         </span>
-                        {job ? (
-                          <JobStatusBadge job={job} />
-                        ) : (
-                          <Badge variant={support.supported ? 'secondary' : 'outline'}>
-                            {support.label}
-                          </Badge>
-                        )}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
 
                 {selectedOption && selectedSupport ? (
-                  <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 space-y-1">
-                      <p className="text-sm font-medium">
-                        {selectedOption.qualityLabel} from{' '}
-                        {formatHostProvider(selectedOption.hostProvider)}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {selectedOption.providerUrl}
-                      </p>
-                    </div>
+                  <div>
                     <Button
                       disabled={
-                        !selectedSupport.supported ||
+                        !selectedOptionSupported ||
                         selectedActive ||
                         selectedCompleted ||
                         mutating
                       }
                       type="button"
-                      variant={selectedCompleted ? 'outline' : 'default'}
                       onClick={handleConfirmDownload}
                     >
-                      <Download />
-                      {getLocalDownloadButtonLabel(
-                        selectedJob,
-                        selectedSupport.supported,
-                      )}
+                      Confirm download
                     </Button>
                   </div>
                 ) : null}
@@ -3332,26 +3308,6 @@ function isActiveDownloadStatus(status: DownloadJob['status']) {
   return ['queued', 'resolving', 'downloading', 'paused'].includes(status);
 }
 
-function getDownloadButtonLabel(job: DownloadJob | undefined, supported: boolean) {
-  if (!supported) {
-    return 'Unavailable';
-  }
-
-  if (!job) {
-    return 'Download';
-  }
-
-  if (job.status === 'completed') {
-    return 'Done';
-  }
-
-  if (job.status === 'failed' || job.status === 'cancelled') {
-    return 'Retry';
-  }
-
-  return 'Running';
-}
-
 function getDownloadProgressPercent(job: DownloadJob) {
   if (!job.totalBytes) {
     return job.status === 'completed' ? 100 : 0;
@@ -3631,7 +3587,7 @@ function getDownloadQualityGroups(downloadOptions: DownloadOption[]) {
     }
 
     groups.set(option.quality, {
-      label: option.quality,
+      label: getDownloadQualityLabel(option.quality),
       options: [option],
       quality: option.quality,
     });
@@ -3654,6 +3610,31 @@ function getDownloadQualityGroups(downloadOptions: DownloadOption[]) {
     );
 }
 
+function getDownloadQualityLabel(quality: DownloadOption['quality']) {
+  switch (quality.toUpperCase()) {
+    case 'FHD':
+      return 'FHD - 1080p';
+    case 'HD':
+      return 'HD - 720p';
+    case 'SD':
+      return 'SD - 480p';
+    default:
+      return formatToken(quality) ?? quality;
+  }
+}
+
+function formatDownloadEpisodeReference(
+  episode: EpisodeSummary | undefined,
+  routeEpisodeNumber?: string,
+) {
+  const episodeNumber =
+    normalizeEpisodeNumber(episode?.number) ??
+    normalizeEpisodeNumber(episode?.title) ??
+    normalizeEpisodeNumber(routeEpisodeNumber);
+
+  return episodeNumber ? `Episode ${episodeNumber}` : 'Episode';
+}
+
 function getProviderFaviconUrl(providerUrl: string) {
   try {
     const hostname = new URL(providerUrl).hostname;
@@ -3666,15 +3647,6 @@ function getProviderFaviconUrl(providerUrl: string) {
   } catch {
     return undefined;
   }
-}
-
-function getLocalDownloadButtonLabel(
-  job: DownloadJob | undefined,
-  supported: boolean,
-) {
-  const label = getDownloadButtonLabel(job, supported);
-
-  return label === 'Download' ? 'Download locally' : label;
 }
 
 function getLocalFilesForEpisode({
