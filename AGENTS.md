@@ -134,7 +134,10 @@ Homeserver media:
 - Store media paths relative to the media root whenever possible.
 - The seeded media root key is `homeserver-main`.
 - Treat existing media files as read-only source material until the user explicitly approves a dry-run rename/move plan.
-- Desired future structure is one top-level folder per real media entity, with metadata IDs in names once matched, for example `Anime/Re ZERO -Starting Life in Another World- Season 2 [anilist-108632]/...`.
+- Desired future structure is one top-level folder per real media entity, with a stable Elysium media ID in names once the ID format is finalized.
+- Provider IDs such as AniList and MyAnimeList IDs should live as provider-link fields in the database, not as the primary entity identity.
+- Prefer AniList romaji titles for canonical anime folder and file names. Use English only when romaji is missing or clearly unusable.
+- Strip Arabic wording, source-site prefixes, short codes, and release-site noise from canonical folder and file names.
 - Group related anime through AniList relations in the UI instead of relying on nested franchise folders.
 - Library notes such as `Anime/Series/Re Zero/Watch Order.txt` should import into editable app notes while leaving source files untouched by default.
 - Media library scanner CLI:

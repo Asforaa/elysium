@@ -422,7 +422,7 @@ function inferIssues({
     fileKind === 'video' &&
     (category === 'anime-series' || category === 'series') &&
     parsedEpisodeNumber === undefined &&
-    !relativePath.toLowerCase().includes('movie')
+    !isStandaloneSpecialPath(relativePath)
   ) {
     issues.push('missing-episode-number');
   }
@@ -497,11 +497,14 @@ function canonicalCategoryFolder(category: MediaLibraryCategory) {
 
 function parseEpisodeNumber(value: string) {
   const patterns = [
-    /\bS\d{1,2}\s*E(\d{1,3})\b/iu,
-    /\bEP\s*0?(\d{1,3})\b/iu,
-    /\bE(\d{1,3})(?:\D|$)/iu,
+    /(?:^|[^A-Za-z0-9])S\d{1,2}[_\s.-]*E0?(\d{1,3})(?=$|[^A-Za-z0-9])/iu,
+    /(?:^|[^A-Za-z0-9])EP[_\s.-]*0?(\d{1,3})(?=$|[^A-Za-z0-9])/iu,
+    /(?:^|[^A-Za-z0-9])E0?(\d{1,3})(?=$|[^A-Za-z0-9])/iu,
+    /(?:^|[^A-Za-z0-9])TV[_\s.-]*0?(\d{1,3})(?=$|[^A-Za-z0-9])/iu,
     /الحلقة\s+0?(\d{1,3})/u,
-    /\s-\s0?(\d{1,3})\s*(?:\[|\(|$)/u,
+    /اوفا\s+0?(\d{1,3})/u,
+    /(?:^|[^A-Za-z0-9])0?(\d{1,3})\s*(?:\[|\(|$)/u,
+    /(?:^|[^A-Za-z0-9])0?(\d{1,3})(?:[_\s.-]*(?:END|الأخيرة))?(?=\.[A-Za-z0-9]+$|$)/iu,
   ];
 
   return parseFirstNumber(value, patterns);
@@ -575,6 +578,17 @@ function expandSeasonShorthand(value: string) {
 
 function isSeasonFolder(value: string) {
   return /\b(season|part)\s*\d{1,2}\b/iu.test(value);
+}
+
+function isStandaloneSpecialPath(value: string) {
+  const normalized = value.toLowerCase();
+
+  return (
+    normalized.includes('movie') ||
+    normalized.includes('ova') ||
+    normalized.includes('special') ||
+    normalized.includes('اوفا')
+  );
 }
 
 function hasSeasonToken(value: string, seasonNumber: number) {
