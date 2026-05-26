@@ -159,6 +159,11 @@ Homeserver media:
   - It writes private reports under ignored `/docs/match-reports`.
   - It has a manual hint layer for legacy/local titles that AniList search does not resolve well by itself, including acronym folders such as `NENTSND` and shorthand season folders such as `Xian Wang de Richang Shenghuo S2`.
   - When a local title is corrected in chat, add the durable alias/expected AniList and MAL IDs to the matcher rather than leaving the fix only in a generated report.
+- Media rename planner CLI:
+  - `bun run --filter @elysium/api library:plan-renames`
+  - It is dry-run/read-only for media files.
+  - It writes private rename manifests under ignored `/docs/rename-plans`.
+  - It should have `0` target collisions and `0` existing target conflicts before any future apply step is considered.
 
 Portless:
 
@@ -190,6 +195,9 @@ Provider smoke tests:
   - `bun run --filter @elysium/api library:match-anilist`
 - This should compare local anime groups with AniList romaji-first metadata and write private reports under ignored `/docs/match-reports`.
 - For the homeserver anime library, the matcher currently expects all `96` local anime groups to resolve high-confidence after the manual hint layer is applied.
+- Media rename planner:
+  - `bun run --filter @elysium/api library:plan-renames`
+- This should generate a read-only file move manifest using the latest AniList match report, with Elysium-owned IDs in top-level entity folders and canonical filenames such as `Title - EP 01 - FHD.mp4`, `Title - Movie - HD.mp4`, `Title - OVA 01.mp4`, and `Title - Special 01.mp4`.
 
 Private docs:
 
