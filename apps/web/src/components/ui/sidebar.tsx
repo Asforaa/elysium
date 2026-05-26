@@ -163,7 +163,7 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
   overlay?: boolean
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, state, openMobile, setOpen, setOpenMobile } = useSidebar()
 
   if (collapsible === "none") {
     return (
@@ -229,6 +229,15 @@ function Sidebar({
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)"
         )}
       />
+      {overlay && state === "expanded" ? (
+        <button
+          aria-label="Close sidebar"
+          className="fixed inset-0 z-40 hidden bg-background/65 backdrop-blur-sm md:block"
+          data-slot="sidebar-overlay"
+          type="button"
+          onClick={() => setOpen(false)}
+        />
+      ) : null}
       <div
         data-slot="sidebar-container"
         data-side={side}

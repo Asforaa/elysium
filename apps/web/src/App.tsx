@@ -604,6 +604,22 @@ function App({
               )}
             >
               <div className="flex min-w-0 items-center gap-2">
+                {showingEpisodeRoute ? (
+                  <button
+                    aria-label="Go to home"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    type="button"
+                    onClick={() => {
+                      void navigate({ to: '/home' });
+                    }}
+                  >
+                    <img
+                      alt=""
+                      className="size-7 object-contain"
+                      src={BRAND_MARK_SRC}
+                    />
+                  </button>
+                ) : null}
                 <SidebarTrigger
                   className={cn(
                     '-ml-2',
@@ -1454,7 +1470,10 @@ function EpisodeWatchPanel({
   });
   const [selectedLocalFileId, setSelectedLocalFileId] = useState<string>();
   const [selectedStreamIndex, setSelectedStreamIndex] = useState(0);
+  const [episodesPanelOpen, setEpisodesPanelOpen] = useState(false);
+  const [playerHeight, setPlayerHeight] = useState<number>();
   const lastProgressSaveRef = useRef(0);
+  const playerFrameRef = useRef<HTMLDivElement>(null);
   const restoredProgressKeyRef = useRef<string | undefined>(undefined);
   const selectedLocalFile =
     localFiles.find((file) => file.id === selectedLocalFileId) ?? localFiles[0];
@@ -1499,6 +1518,31 @@ function EpisodeWatchPanel({
   useEffect(() => {
     setSelectedStreamIndex(0);
   }, [playableStreams.map((option) => option.embedUrl).join('|')]);
+
+  useEffect(() => {
+    const playerFrame = playerFrameRef.current;
+
+    if (!playerFrame) {
+      return undefined;
+    }
+
+    const measuredPlayerFrame = playerFrame;
+
+    function updatePlayerHeight() {
+      setPlayerHeight(measuredPlayerFrame.getBoundingClientRect().height);
+    }
+
+    updatePlayerHeight();
+
+    const observer = new ResizeObserver(updatePlayerHeight);
+    observer.observe(measuredPlayerFrame);
+    window.addEventListener('resize', updatePlayerHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updatePlayerHeight);
+    };
+  }, [episodesPanelOpen, selectedLocalFile?.id, selectedStream?.embedUrl]);
 
   function saveLocalProgress(
     event: SyntheticEvent<HTMLVideoElement>,
@@ -1557,40 +1601,61 @@ function EpisodeWatchPanel({
 
   return (
     <section className="space-y-4">
-      <div className="overflow-hidden rounded-xl bg-black shadow-sm">
-        <div className="mx-auto aspect-video w-full max-w-[min(100%,calc((100svh-12rem)*1.7778))] bg-black">
-          {selectedLocalFile ? (
-            <ElysiumVideoPlayer
-              poster={
-                anime.bannerImage ??
-                anime.coverImage?.extraLarge ??
-                anime.coverImage?.large
-              }
-              src={getLocalMediaStreamUrl(selectedLocalFile.id)}
-              onEnded={(event) => saveLocalProgress(event, true, true)}
-              onLoadedMetadata={restoreLocalProgress}
-              onPause={(event) => saveLocalProgress(event, false, true)}
-              onTimeUpdate={(event) => saveLocalProgress(event)}
-            />
-          ) : selectedStream ? (
-            <iframe
-              allow="fullscreen; encrypted-media; picture-in-picture"
-              allowFullScreen
-              className="h-full w-full border-0"
-              referrerPolicy="no-referrer-when-downgrade"
-              src={selectedStream.embedUrl}
-              title={`${anime.displayTitle} ${selectedStream.providerLabel}`}
-            />
-          ) : streamingOptionsLoading ? (
-            <div className="flex h-full w-full items-center justify-center bg-muted/20">
-              <Skeleton className="h-full w-full rounded-none bg-muted/20" />
-            </div>
-          ) : (
-            <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              No streaming embeds found for this episode yet.
-            </div>
-          )}
+      <div
+        className={cn(
+          'grid gap-4',
+          episodesPanelOpen && 'lg:grid-cols-[minmax(0,1fr)_20rem]',
+        )}
+      >
+        <div className="overflow-hidden rounded-xl bg-black shadow-sm">
+          <div
+            className="mx-auto aspect-video w-full max-w-[min(100%,calc((100svh-12rem)*1.7778))] bg-black"
+            ref={playerFrameRef}
+          >
+            {selectedLocalFile ? (
+              <ElysiumVideoPlayer
+                poster={
+                  anime.bannerImage ??
+                  anime.coverImage?.extraLarge ??
+                  anime.coverImage?.large
+                }
+                src={getLocalMediaStreamUrl(selectedLocalFile.id)}
+                onEnded={(event) => saveLocalProgress(event, true, true)}
+                onLoadedMetadata={restoreLocalProgress}
+                onPause={(event) => saveLocalProgress(event, false, true)}
+                onTimeUpdate={(event) => saveLocalProgress(event)}
+              />
+            ) : selectedStream ? (
+              <iframe
+                allow="fullscreen; encrypted-media; picture-in-picture"
+                allowFullScreen
+                className="h-full w-full border-0"
+                referrerPolicy="no-referrer-when-downgrade"
+                src={selectedStream.embedUrl}
+                title={`${anime.displayTitle} ${selectedStream.providerLabel}`}
+              />
+            ) : streamingOptionsLoading ? (
+              <div className="flex h-full w-full items-center justify-center bg-muted/20">
+                <Skeleton className="h-full w-full rounded-none bg-muted/20" />
+              </div>
+            ) : (
+              <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+                No streaming embeds found for this episode yet.
+              </div>
+            )}
+          </div>
         </div>
+
+        {episodesPanelOpen ? (
+          <EpisodeSidePanel
+            currentEpisode={episode}
+            episodes={episodeDrawerItems}
+            height={playerHeight}
+            loading={episodesLoading}
+            routeEpisodeNumber={routeEpisodeNumber}
+            onEpisodeSelect={onEpisodeSelect}
+          />
+        ) : null}
       </div>
 
       <div className="space-y-4">
@@ -1598,13 +1663,16 @@ function EpisodeWatchPanel({
           <h1 className="min-w-0 text-xl font-semibold leading-tight md:text-2xl">
             {watchTitle}
           </h1>
-          <EpisodeDrawerButton
-            currentEpisode={episode}
-            episodes={episodeDrawerItems}
-            loading={episodesLoading}
-            routeEpisodeNumber={routeEpisodeNumber}
-            onEpisodeSelect={onEpisodeSelect}
-          />
+          <Button
+            aria-expanded={episodesPanelOpen}
+            className="w-full sm:w-auto"
+            type="button"
+            variant="secondary"
+            onClick={() => setEpisodesPanelOpen((open) => !open)}
+          >
+            <Clapperboard />
+            Episodes
+          </Button>
         </div>
 
         {selectedLocalFile ? (
@@ -1661,79 +1729,73 @@ function EpisodeWatchPanel({
   );
 }
 
-function EpisodeDrawerButton({
+function EpisodeSidePanel({
   currentEpisode,
   episodes,
+  height,
   loading,
   routeEpisodeNumber,
   onEpisodeSelect,
 }: {
   currentEpisode: EpisodeSummary | undefined;
   episodes: EpisodeSummary[];
+  height?: number;
   loading: boolean;
   routeEpisodeNumber?: string;
   onEpisodeSelect: (episode: EpisodeSummary) => void;
 }) {
   return (
-    <Drawer direction="left">
-      <DrawerTrigger asChild>
-        <Button className="w-full sm:w-auto" type="button" variant="secondary">
-          <Clapperboard />
-          Episodes
-        </Button>
-      </DrawerTrigger>
-      <DrawerContent className="h-full sm:max-w-md">
-        <DrawerHeader>
-          <DrawerTitle>Episodes</DrawerTitle>
-          <DrawerDescription>
-            Select another episode from this anime.
-          </DrawerDescription>
-        </DrawerHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-          {loading ? <ResultSkeleton compact /> : null}
-          {!loading && episodes.length ? (
-            <div className="space-y-2">
-              {episodes.map((episode) => {
-                const selected = isSameEpisode(
-                  episode,
-                  currentEpisode,
-                  routeEpisodeNumber,
-                );
-                const title = getEpisodeSubtitle(episode);
+    <aside
+      className="min-h-0 overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm animate-in fade-in slide-in-from-right-4 duration-200"
+      style={height ? { height } : undefined}
+    >
+      <div className="border-b px-4 py-3">
+        <h2 className="font-semibold">Episodes</h2>
+      </div>
+      <div className="h-[calc(100%-3rem)] overflow-y-auto p-3">
+        {loading ? <ResultSkeleton compact /> : null}
+        {!loading && episodes.length ? (
+          <div className="space-y-2">
+            {episodes.map((episode) => {
+              const selected = isSameEpisode(
+                episode,
+                currentEpisode,
+                routeEpisodeNumber,
+              );
+              const title = getEpisodeSubtitle(episode);
 
-                return (
-                  <DrawerClose asChild key={episode.url}>
-                    <button
-                      className={cn(
-                        'flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-3 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                        selected && 'border-primary bg-primary/10 text-primary',
-                      )}
-                      type="button"
-                      onClick={() => onEpisodeSelect(episode)}
-                    >
-                      <span className="min-w-0">
-                        <span className="block font-medium">
-                          {formatEpisodeTitle(episode)}
-                        </span>
-                        {title ? (
-                          <span className="mt-1 block truncate text-xs text-muted-foreground">
-                            {title}
-                          </span>
-                        ) : null}
+              return (
+                <button
+                  aria-current={selected ? 'true' : undefined}
+                  className={cn(
+                    'flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-3 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    selected && 'border-primary bg-primary/10 text-primary',
+                  )}
+                  key={episode.url}
+                  type="button"
+                  onClick={() => onEpisodeSelect(episode)}
+                >
+                  <span className="min-w-0">
+                    <span className="block font-medium">
+                      {formatEpisodeTitle(episode)}
+                    </span>
+                    {title ? (
+                      <span className="mt-1 block truncate text-xs text-muted-foreground">
+                        {title}
                       </span>
-                      {selected ? <Badge variant="secondary">Current</Badge> : null}
-                    </button>
-                  </DrawerClose>
-                );
-              })}
-            </div>
-          ) : null}
-          {!loading && !episodes.length ? (
-            <p className="text-sm text-muted-foreground">No episodes found yet.</p>
-          ) : null}
-        </div>
-      </DrawerContent>
-    </Drawer>
+                    ) : null}
+                  </span>
+                  {selected ? <Badge variant="secondary">Current</Badge> : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        {!loading && !episodes.length ? (
+          <p className="text-sm text-muted-foreground">No episodes found yet.</p>
+        ) : null}
+      </div>
+    </aside>
   );
 }
 
