@@ -1487,7 +1487,8 @@ type SeekFeedback = {
 };
 
 type SeekHoverPreview = {
-  leftPercent: number;
+  bottomPx: number;
+  leftPx: number;
   timeSeconds: number;
 };
 
@@ -1695,6 +1696,7 @@ function ElysiumVideoPlayer({
       return;
     }
 
+    const playerRect = event.currentTarget.getBoundingClientRect();
     const pointerRatio = clamp(
       (event.clientX - sliderRect.left) / sliderRect.width,
       0,
@@ -1702,7 +1704,8 @@ function ElysiumVideoPlayer({
     );
 
     updateSeekHoverPreview({
-      leftPercent: clamp(pointerRatio * 100, 8, 92),
+      bottomPx: playerRect.bottom - sliderRect.top + 14,
+      leftPx: event.clientX - playerRect.left,
       timeSeconds: duration * pointerRatio,
     });
   }
@@ -1793,7 +1796,10 @@ function ElysiumSeekHoverPreview({
     <div
       aria-hidden="true"
       className="elysium-seek-hover-preview"
-      style={{ left: `${preview.leftPercent}%` }}
+      style={{
+        bottom: `${preview.bottomPx}px`,
+        left: `${preview.leftPx}px`,
+      }}
     >
       <div className="elysium-seek-hover-preview__frame">
         <video
@@ -1829,9 +1835,21 @@ function ElysiumPlayerNowPlaying({
         .join(': ')
     : undefined;
 
+  function handleExitFullscreen() {
+    void fullscreen?.exitFullscreen().catch(() => undefined);
+  }
+
   return (
     <div className="elysium-player-now-playing" data-visible={visible ? '' : undefined}>
-      <ChevronLeft aria-hidden="true" className="elysium-player-now-playing__icon" />
+      <button
+        aria-label="Exit fullscreen"
+        className="elysium-player-now-playing__back"
+        disabled={!fullscreen?.fullscreen}
+        type="button"
+        onClick={handleExitFullscreen}
+      >
+        <ChevronLeft aria-hidden="true" className="elysium-player-now-playing__icon" />
+      </button>
       <div className="min-w-0">
         <p className="elysium-player-now-playing__title">{nowPlaying.mediaTitle}</p>
         {episodeLine ? (

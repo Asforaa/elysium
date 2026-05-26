@@ -154,22 +154,35 @@
 
 .elysium-playback-feedback__bubble {
     align-items: center;
-    animation: elysium-playback-feedback 620ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
-    backdrop-filter: blur(7px);
-    background: oklch(0 0 0 / 58%);
     border-radius: 9999px;
-    box-shadow: 0 16px 40px oklch(0 0 0 / 35%);
     color: white;
     display: flex;
     height: clamp(4.75rem, 9vw, 6.75rem);
     justify-content: center;
+    position: relative;
+    transform-origin: center;
+    animation: elysium-playback-feedback-motion var(--elysium-playback-feedback-duration, 620ms) cubic-bezier(0.2, 0.9, 0.2, 1) both;
     width: clamp(4.75rem, 9vw, 6.75rem);
 }
 
+.elysium-playback-feedback__bubble::before {
+    animation: elysium-playback-feedback-visibility var(--elysium-playback-feedback-duration, 620ms) cubic-bezier(0.2, 0.9, 0.2, 1) both;
+    backdrop-filter: blur(7px);
+    background: oklch(0 0 0 / 58%);
+    border-radius: inherit;
+    box-shadow: 0 16px 40px oklch(0 0 0 / 35%);
+    content: "";
+    inset: 0;
+    position: absolute;
+}
+
 .elysium-playback-feedback__icon {
+    animation: elysium-playback-feedback-visibility var(--elysium-playback-feedback-duration, 620ms) cubic-bezier(0.2, 0.9, 0.2, 1) both;
     filter: drop-shadow(0 2px 7px oklch(0 0 0 / 34%));
     height: 48%;
+    position: relative;
     width: 48%;
+    z-index: 1;
 }
 
 .elysium-seek-hover-preview {
@@ -218,6 +231,7 @@
     filter: blur(8px);
     gap: 0.85rem;
     inset-inline-start: clamp(1.25rem, 4vw, 3rem);
+    isolation: isolate;
     max-width: min(38rem, calc(100vw - 4rem));
     opacity: 0;
     pointer-events: none;
@@ -232,6 +246,23 @@
     z-index: 20;
 }
 
+.media-default-skin .elysium-player-now-playing::before {
+    background: linear-gradient(
+        180deg,
+        oklch(0 0 0 / 60%) 0%,
+        oklch(0 0 0 / 30%) 54%,
+        oklch(0 0 0 / 0%) 100%
+    );
+    content: "";
+    height: clamp(6.75rem, 16vh, 10rem);
+    inset-block-start: calc(-1 * clamp(1.25rem, 3vh, 2.25rem));
+    inset-inline-start: calc(-1 * clamp(1.25rem, 4vw, 3rem));
+    pointer-events: none;
+    position: absolute;
+    width: min(100vw, 46rem);
+    z-index: -1;
+}
+
 .media-default-skin .elysium-player-now-playing[data-visible],
 .media-default-skin:fullscreen:has(.media-controls[data-visible]) .elysium-player-now-playing,
 .media-default-skin:-webkit-full-screen:has(.media-controls[data-visible]) .elysium-player-now-playing {
@@ -239,6 +270,30 @@
     opacity: 1;
     transform: translateY(0);
     visibility: visible;
+}
+
+.elysium-player-now-playing__back {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 9999px;
+    color: inherit;
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: clamp(2.3rem, 3vw, 3rem);
+    justify-content: center;
+    margin: -0.25rem;
+    padding: 0;
+    pointer-events: auto;
+    width: clamp(2.3rem, 3vw, 3rem);
+}
+
+.elysium-player-now-playing__back:hover {
+    background: oklch(1 0 0 / 12%);
+}
+
+.elysium-player-now-playing__back:disabled {
+    pointer-events: none;
 }
 
 .elysium-player-now-playing__icon {
@@ -281,25 +336,36 @@
     }
 }
 
-@keyframes elysium-playback-feedback {
+@keyframes elysium-playback-feedback-motion {
+    0% {
+        transform: scale(0.72);
+    }
+    18% {
+        transform: scale(1);
+    }
+    72% {
+        transform: scale(1);
+    }
+    100% {
+        transform: scale(1.22);
+    }
+}
+
+@keyframes elysium-playback-feedback-visibility {
     0% {
         filter: blur(7px);
         opacity: 0;
-        transform: scale(0.72);
     }
     18% {
         filter: blur(0);
         opacity: 1;
-        transform: scale(1);
     }
     72% {
         filter: blur(0);
         opacity: 1;
-        transform: scale(1);
     }
     100% {
         filter: blur(10px);
         opacity: 0;
-        transform: scale(1.22);
     }
 }
