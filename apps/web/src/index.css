@@ -231,7 +231,6 @@
     filter: blur(8px);
     gap: 0.85rem;
     inset-inline-start: clamp(1.25rem, 4vw, 3rem);
-    isolation: isolate;
     max-width: min(38rem, calc(100vw - 4rem));
     opacity: 0;
     pointer-events: none;
@@ -246,21 +245,31 @@
     z-index: 20;
 }
 
-.media-default-skin .elysium-player-now-playing::before {
+.media-default-skin .elysium-player-top-shade {
     background: linear-gradient(
         180deg,
         oklch(0 0 0 / 60%) 0%,
         oklch(0 0 0 / 30%) 54%,
         oklch(0 0 0 / 0%) 100%
     );
-    content: "";
     height: clamp(6.75rem, 16vh, 10rem);
-    inset-block-start: calc(-1 * clamp(1.25rem, 3vh, 2.25rem));
-    inset-inline-start: calc(-1 * clamp(1.25rem, 4vw, 3rem));
+    inset-block-start: 0;
+    inset-inline: 0;
+    opacity: 0;
     pointer-events: none;
     position: absolute;
-    width: min(100vw, 46rem);
-    z-index: -1;
+    transition-duration: var(--media-controls-transition-duration, 180ms);
+    transition-property: opacity, visibility;
+    transition-timing-function: var(--media-controls-transition-timing-function, ease-out);
+    visibility: hidden;
+    z-index: 19;
+}
+
+.media-default-skin .elysium-player-top-shade[data-visible],
+.media-default-skin:fullscreen:has(.media-controls[data-visible]) .elysium-player-top-shade,
+.media-default-skin:-webkit-full-screen:has(.media-controls[data-visible]) .elysium-player-top-shade {
+    opacity: 1;
+    visibility: visible;
 }
 
 .media-default-skin .elysium-player-now-playing[data-visible],

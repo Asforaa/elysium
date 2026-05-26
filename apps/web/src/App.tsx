@@ -1769,6 +1769,7 @@ function ElysiumVideoPlayer({
               src={src}
             />
           ) : null}
+          {nowPlaying ? <ElysiumPlayerTopShade /> : null}
           {nowPlaying ? <ElysiumPlayerNowPlaying nowPlaying={nowPlaying} /> : null}
           {seekFeedback ? <ElysiumSeekFeedback feedback={seekFeedback} /> : null}
         </VideoSkin>
@@ -1815,6 +1816,20 @@ function ElysiumSeekHoverPreview({
         {formatDuration(preview.timeSeconds)}
       </time>
     </div>
+  );
+}
+
+function ElysiumPlayerTopShade() {
+  const controls = ELYSIUM_VIDEO_PLAYER.usePlayer(selectControls);
+  const fullscreen = ELYSIUM_VIDEO_PLAYER.usePlayer(selectFullscreen);
+  const visible = Boolean(fullscreen?.fullscreen && controls?.controlsVisible);
+
+  return (
+    <div
+      aria-hidden="true"
+      className="elysium-player-top-shade"
+      data-visible={visible ? '' : undefined}
+    />
   );
 }
 
