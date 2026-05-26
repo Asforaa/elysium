@@ -165,6 +165,9 @@ Homeserver media:
   - It writes private rename manifests under ignored `/docs/rename-plans`.
   - It should have `0` target collisions and `0` existing target conflicts before any future apply step is considered.
   - It must not treat decimal episodes, OVA/special labels, or standalone anime-series extras as final truth by filename alone; these must be verified against MyAnimeList episode data before any apply step.
+  - Verified local-release exceptions are allowed when MAL lacks the exact local numbering but external evidence and local duration checks confirm the file's role. Current exceptions:
+    - Re:Zero S1 `E01` and `E1.5` are the split double-length MAL episode 1 and should plan as `EP 01A` and `EP 01B`.
+    - Gangsta `E9.5` is an optional recap/special before episode 10 and should plan as `Special 01 - Recap After EP 09` with sort order `9.5`.
 
 Portless:
 
@@ -200,6 +203,7 @@ Provider smoke tests:
   - `bun run --filter @elysium/api library:plan-renames`
 - This should generate a read-only file move manifest using the latest AniList match report, with Elysium-owned IDs in top-level entity folders and canonical filenames such as `Title - EP 01 - FHD.mp4`, `Title - Movie - HD.mp4`, `Title - OVA 01.mp4`, and `Title - Special 01.mp4`.
 - Any action marked `mal-episode-list-verification-required` is provisional. A future apply step must refuse to move those files until a MyAnimeList episode-list verification pass confirms the numbering/kind.
+- The planner has local numbering overrides for Re:Zero S1 split-premiere files and Gangsta `E9.5`; preserve those as metadata overrides instead of forcing them into fake MAL episode numbers.
 
 Private docs:
 

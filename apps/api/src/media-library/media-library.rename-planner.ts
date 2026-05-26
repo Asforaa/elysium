@@ -20,6 +20,15 @@ export interface MediaLibraryRenamePlanAction {
   issues: string[];
   metadata?: {
     anilistId?: number;
+    localEpisodeOverride?: {
+      canonicalEpisodeNumber?: number;
+      kind: 'recap-special' | 'split-premiere-part';
+      note: string;
+      optional?: boolean;
+      partLabel?: string;
+      sortOrder?: number;
+      verifiedBy: string;
+    };
     malId?: number;
     matchedTitle?: string;
     matchConfidence?: LocalAnimeMatch['confidence'];
@@ -67,7 +76,52 @@ interface ReadMatchReportResult {
   matchReportPath?: string;
 }
 
+interface LocalEpisodeNumberingOverride {
+  canonicalEpisodeNumber?: number;
+  kind: 'recap-special' | 'split-premiere-part';
+  note: string;
+  optional?: boolean;
+  partLabel?: string;
+  pattern: RegExp;
+  sortOrder?: number;
+  targetToken: string;
+  verifiedBy: string;
+}
+
 const VIDEO_LIKE_KINDS = new Set(['video']);
+const LOCAL_EPISODE_NUMBERING_OVERRIDES: LocalEpisodeNumberingOverride[] = [
+  {
+    canonicalEpisodeNumber: 1,
+    kind: 'split-premiere-part',
+    note: 'Local release splits Re:Zero season 1 double-length premiere into part A.',
+    partLabel: 'A',
+    pattern:
+      /^Anime\/Series\/Re Zero\/Season 1\/\[Animeify\]ReZero_kara_Hajimeru_Isekai_Seikatsu-E01\.mp4$/u,
+    sortOrder: 1.1,
+    targetToken: 'EP 01A',
+    verifiedBy: 'Re:Zero S1 extended premiere check, 2026-05-26',
+  },
+  {
+    canonicalEpisodeNumber: 1,
+    kind: 'split-premiere-part',
+    note: 'Local release splits Re:Zero season 1 double-length premiere into part B.',
+    partLabel: 'B',
+    pattern:
+      /^Anime\/Series\/Re Zero\/Season 1\/\[Animeify\]ReZero_kara_Hajimeru_Isekai_Seikatsu-E1\.5\.mp4$/u,
+    sortOrder: 1.2,
+    targetToken: 'EP 01B',
+    verifiedBy: 'Re:Zero S1 extended premiere check, 2026-05-26',
+  },
+  {
+    kind: 'recap-special',
+    note: 'Gangsta episode 9.5 is an optional recap/special that airs before episode 10.',
+    optional: true,
+    pattern: /^Anime\/Series\/Gangsta\/\[Animeify\]Gangsta-E9\.5\.mp4$/u,
+    sortOrder: 9.5,
+    targetToken: 'Special 01 - Recap After EP 09',
+    verifiedBy: 'TVDB/Gangsta wiki recap check, 2026-05-26',
+  },
+];
 
 export async function planMediaLibraryRenames({
   matchReportPath,
@@ -189,8 +243,12 @@ class RenamePlanner {
     const entity = match?.bestMatch
       ? this.getOrCreateMatchedEntity(match)
       : this.getOrCreateLocalEntity(file);
+    const localEpisodeOverride = getLocalEpisodeNumberingOverride(file);
     const targetRelativePath = toPosixPath(
-      join(entityFolder(entity), this.buildTargetFilename(file, entity, match)),
+      join(
+        entityFolder(entity),
+        this.buildTargetFilename(file, entity, match, localEpisodeOverride),
+      ),
     );
     const issues = [
       ...file.issues,
@@ -200,7 +258,7 @@ class RenamePlanner {
       ...(!match && isAnimeCategory(file.category)
         ? ['missing-anilist-match']
         : []),
-      ...(requiresMalEpisodeVerification(file, match)
+      ...(requiresMalEpisodeVerification(file, match, localEpisodeOverride)
         ? ['mal-episode-list-verification-required']
         : []),
       ...(!isAnimeCategory(file.category)
@@ -216,16 +274,7 @@ class RenamePlanner {
       entityKey: entity.key,
       fileKind: file.fileKind,
       issues,
-      metadata: match?.bestMatch
-        ? {
-            anilistId: match.bestMatch.id,
-            malId: match.bestMatch.idMal,
-            matchedTitle:
-              match.bestMatch.romajiTitle ?? match.bestMatch.canonicalTitle,
-            matchConfidence: match.confidence,
-            matchScore: match.bestMatch.score,
-          }
-        : undefined,
+      metadata: buildActionMetadata(match, localEpisodeOverride),
       sourceRelativePath: file.relativePath,
       targetRelativePath,
     };
@@ -314,6 +363,7 @@ class RenamePlanner {
     file: MediaLibraryScanFile,
     entity: PlannedEntity,
     match?: LocalAnimeMatch,
+    localEpisodeOverride?: LocalEpisodeNumberingOverride,
   ) {
     const title = entity.title;
     const qualitySuffix = file.parsedQuality ? ` - ${file.parsedQuality}` : '';
@@ -327,6 +377,10 @@ class RenamePlanner {
           : `S${pad2(season)}E${pad2(file.parsedEpisodeNumber)}`;
 
       return `${title} - ${episodeToken}${qualitySuffix}${extension}`;
+    }
+
+    if (localEpisodeOverride) {
+      return `${title} - ${localEpisodeOverride.targetToken}${qualitySuffix}${extension}`;
     }
 
     const specialToken = specialEpisodeToken(file);
@@ -524,15 +578,56 @@ function isEpisodeLike(file: MediaLibraryScanFile, match?: LocalAnimeMatch) {
   return format === 'TV' || format === 'ONA';
 }
 
+function buildActionMetadata(
+  match?: LocalAnimeMatch,
+  localEpisodeOverride?: LocalEpisodeNumberingOverride,
+): MediaLibraryRenamePlanAction['metadata'] {
+  const metadata: MediaLibraryRenamePlanAction['metadata'] = {};
+
+  if (match?.bestMatch) {
+    metadata.anilistId = match.bestMatch.id;
+    metadata.malId = match.bestMatch.idMal;
+    metadata.matchedTitle =
+      match.bestMatch.romajiTitle ?? match.bestMatch.canonicalTitle;
+    metadata.matchConfidence = match.confidence;
+    metadata.matchScore = match.bestMatch.score;
+  }
+
+  if (localEpisodeOverride) {
+    metadata.localEpisodeOverride = {
+      canonicalEpisodeNumber: localEpisodeOverride.canonicalEpisodeNumber,
+      kind: localEpisodeOverride.kind,
+      note: localEpisodeOverride.note,
+      optional: localEpisodeOverride.optional,
+      partLabel: localEpisodeOverride.partLabel,
+      sortOrder: localEpisodeOverride.sortOrder,
+      verifiedBy: localEpisodeOverride.verifiedBy,
+    };
+  }
+
+  return Object.keys(metadata).length ? metadata : undefined;
+}
+
+function getLocalEpisodeNumberingOverride(file: MediaLibraryScanFile) {
+  return LOCAL_EPISODE_NUMBERING_OVERRIDES.find((override) =>
+    override.pattern.test(file.relativePath),
+  );
+}
+
 function requiresMalEpisodeVerification(
   file: MediaLibraryScanFile,
   match?: LocalAnimeMatch,
+  localEpisodeOverride?: LocalEpisodeNumberingOverride,
 ) {
   if (
     file.fileKind !== 'video' ||
     !isAnimeCategory(file.category) ||
     !match?.bestMatch?.idMal
   ) {
+    return false;
+  }
+
+  if (localEpisodeOverride) {
     return false;
   }
 
