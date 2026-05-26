@@ -10,12 +10,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { createPlayer } from '@videojs/react';
+import { createPlayer, selectControls, selectFullscreen } from '@videojs/react';
 import { Video, VideoSkin, videoFeatures } from '@videojs/react/video';
 import '@videojs/react/video/skin.css';
 import {
   Clapperboard,
   ChevronDown,
+  ChevronLeft,
   Clock,
   Download,
   Film,
@@ -1347,7 +1348,14 @@ type PlaybackFeedback = {
   id: number;
 };
 
+type PlayerNowPlaying = {
+  episodeNumber?: string;
+  episodeTitle?: string;
+  mediaTitle: string;
+};
+
 function ElysiumVideoPlayer({
+  nowPlaying,
   poster,
   src,
   onEnded,
@@ -1355,6 +1363,7 @@ function ElysiumVideoPlayer({
   onPause,
   onTimeUpdate,
 }: {
+  nowPlaying?: PlayerNowPlaying;
   poster?: string;
   src: string;
   onEnded?: VideoElementEventHandler;
@@ -1468,10 +1477,41 @@ function ElysiumVideoPlayer({
           {playbackFeedback ? (
             <ElysiumPlaybackFeedback feedback={playbackFeedback} />
           ) : null}
+          {nowPlaying ? <ElysiumPlayerNowPlaying nowPlaying={nowPlaying} /> : null}
           {seekFeedback ? <ElysiumSeekFeedback feedback={seekFeedback} /> : null}
         </VideoSkin>
       </div>
     </ELYSIUM_VIDEO_PLAYER.Provider>
+  );
+}
+
+function ElysiumPlayerNowPlaying({
+  nowPlaying,
+}: {
+  nowPlaying: PlayerNowPlaying;
+}) {
+  const controls = ELYSIUM_VIDEO_PLAYER.usePlayer(selectControls);
+  const fullscreen = ELYSIUM_VIDEO_PLAYER.usePlayer(selectFullscreen);
+  const visible = Boolean(fullscreen?.fullscreen && controls?.controlsVisible);
+  const episodeLine = nowPlaying.episodeNumber
+    ? [
+        `Episode ${nowPlaying.episodeNumber}`,
+        nowPlaying.episodeTitle,
+      ]
+        .filter(Boolean)
+        .join(': ')
+    : undefined;
+
+  return (
+    <div className="elysium-player-now-playing" data-visible={visible ? '' : undefined}>
+      <ChevronLeft aria-hidden="true" className="elysium-player-now-playing__icon" />
+      <div className="min-w-0">
+        <p className="elysium-player-now-playing__title">{nowPlaying.mediaTitle}</p>
+        {episodeLine ? (
+          <p className="elysium-player-now-playing__episode">{episodeLine}</p>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -1604,6 +1644,15 @@ function EpisodeWatchPanel({
     () => getEpisodeDrawerItems(episodes, episode, routeEpisodeNumber),
     [episodes, episode, routeEpisodeNumber],
   );
+  const currentEpisodeNumber =
+    normalizeEpisodeNumber(episode?.number) ??
+    normalizeEpisodeNumber(episode?.title) ??
+    normalizeEpisodeNumber(routeEpisodeNumber) ??
+    normalizeEpisodeNumber(selectedLocalFile?.episodeNumber) ??
+    normalizeEpisodeNumber(selectedLocalFile?.episodeTitle);
+  const currentEpisodeSubtitle =
+    (episode ? getEpisodeSubtitle(episode) : undefined) ??
+    getEpisodeSubtitleFromText(selectedLocalFile?.episodeTitle, currentEpisodeNumber);
   const episodeTitle = episode
     ? formatEpisodeTitle(episode)
     : routeEpisodeNumber
@@ -1724,6 +1773,11 @@ function EpisodeWatchPanel({
           >
             {selectedLocalFile ? (
               <ElysiumVideoPlayer
+                nowPlaying={{
+                  episodeNumber: currentEpisodeNumber,
+                  episodeTitle: currentEpisodeSubtitle,
+                  mediaTitle: anime.displayTitle,
+                }}
                 poster={
                   anime.bannerImage ??
                   anime.coverImage?.extraLarge ??
@@ -3824,20 +3878,25 @@ function formatEpisodeTitle(episode: EpisodeSummary) {
 }
 
 function getEpisodeSubtitle(episode: EpisodeSummary) {
-  const title = episode.title?.trim();
+  const episodeNumber = normalizeEpisodeNumber(episode.number);
 
-  if (!title || /[\u0600-\u06FF]/.test(title)) {
+  return getEpisodeSubtitleFromText(episode.title, episodeNumber);
+}
+
+function getEpisodeSubtitleFromText(title: string | undefined, episodeNumber?: string) {
+  const trimmedTitle = title?.trim();
+
+  if (!trimmedTitle || /[\u0600-\u06FF]/.test(trimmedTitle)) {
     return undefined;
   }
 
-  const titleEpisodeNumber = normalizeEpisodeNumber(title);
-  const episodeNumber = normalizeEpisodeNumber(episode.number);
+  const titleEpisodeNumber = normalizeEpisodeNumber(trimmedTitle);
 
   if (titleEpisodeNumber && episodeNumber && titleEpisodeNumber === episodeNumber) {
     return undefined;
   }
 
-  return title;
+  return trimmedTitle;
 }
 
 function getEpisodeDrawerItems(

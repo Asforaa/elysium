@@ -172,6 +172,63 @@
     width: 48%;
 }
 
+.media-default-skin .elysium-player-now-playing {
+    align-items: center;
+    color: white;
+    display: flex;
+    filter: blur(8px);
+    gap: 0.85rem;
+    inset-inline-start: clamp(1.25rem, 4vw, 3rem);
+    max-width: min(38rem, calc(100vw - 4rem));
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    text-shadow: 0 2px 10px oklch(0 0 0 / 60%);
+    top: clamp(1.25rem, 3vh, 2.25rem);
+    transform: translateY(-0.6rem);
+    transition-duration: var(--media-controls-transition-duration, 180ms);
+    transition-property: filter, opacity, transform, visibility;
+    transition-timing-function: var(--media-controls-transition-timing-function, ease-out);
+    visibility: hidden;
+    z-index: 20;
+}
+
+.media-default-skin .elysium-player-now-playing[data-visible],
+.media-default-skin:fullscreen:has(.media-controls[data-visible]) .elysium-player-now-playing,
+.media-default-skin:-webkit-full-screen:has(.media-controls[data-visible]) .elysium-player-now-playing {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+}
+
+.elysium-player-now-playing__icon {
+    flex: 0 0 auto;
+    height: clamp(1.8rem, 2.3vw, 2.4rem);
+    opacity: 0.88;
+    width: clamp(1.8rem, 2.3vw, 2.4rem);
+}
+
+.elysium-player-now-playing__title,
+.elysium-player-now-playing__episode {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.elysium-player-now-playing__title {
+    font-size: clamp(1.2rem, 1.9vw, 1.65rem);
+    font-weight: 500;
+    line-height: 1.15;
+}
+
+.elysium-player-now-playing__episode {
+    color: oklch(1 0 0 / 68%);
+    font-size: clamp(0.82rem, 1vw, 1rem);
+    line-height: 1.4;
+    margin-top: 0.15rem;
+}
+
 @keyframes elysium-playback-feedback {
     0% {
         filter: blur(7px);
