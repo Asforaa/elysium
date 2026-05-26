@@ -154,35 +154,22 @@
 
 .elysium-playback-feedback__bubble {
     align-items: center;
+    animation: elysium-playback-feedback var(--elysium-playback-feedback-duration, 620ms) cubic-bezier(0.2, 0.9, 0.2, 1) both;
+    backdrop-filter: blur(7px);
+    background: oklch(0 0 0 / 58%);
     border-radius: 9999px;
+    box-shadow: 0 16px 40px oklch(0 0 0 / 35%);
     color: white;
     display: flex;
     height: clamp(4.75rem, 9vw, 6.75rem);
     justify-content: center;
-    position: relative;
-    transform-origin: center;
-    animation: elysium-playback-feedback-motion var(--elysium-playback-feedback-duration, 620ms) cubic-bezier(0.2, 0.9, 0.2, 1) both;
     width: clamp(4.75rem, 9vw, 6.75rem);
 }
 
-.elysium-playback-feedback__bubble::before {
-    animation: elysium-playback-feedback-visibility var(--elysium-playback-feedback-duration, 620ms) cubic-bezier(0.2, 0.9, 0.2, 1) both;
-    backdrop-filter: blur(7px);
-    background: oklch(0 0 0 / 58%);
-    border-radius: inherit;
-    box-shadow: 0 16px 40px oklch(0 0 0 / 35%);
-    content: "";
-    inset: 0;
-    position: absolute;
-}
-
 .elysium-playback-feedback__icon {
-    animation: elysium-playback-feedback-visibility var(--elysium-playback-feedback-duration, 620ms) cubic-bezier(0.2, 0.9, 0.2, 1) both;
     filter: drop-shadow(0 2px 7px oklch(0 0 0 / 34%));
     height: 48%;
-    position: relative;
     width: 48%;
-    z-index: 1;
 }
 
 .elysium-seek-hover-preview {
@@ -345,36 +332,25 @@
     }
 }
 
-@keyframes elysium-playback-feedback-motion {
-    0% {
-        transform: scale(0.72);
-    }
-    18% {
-        transform: scale(1);
-    }
-    72% {
-        transform: scale(1);
-    }
-    100% {
-        transform: scale(1.22);
-    }
-}
-
-@keyframes elysium-playback-feedback-visibility {
+@keyframes elysium-playback-feedback {
     0% {
         filter: blur(7px);
         opacity: 0;
+        transform: scale(0.72);
     }
     18% {
         filter: blur(0);
         opacity: 1;
+        transform: scale(1);
     }
     72% {
         filter: blur(0);
         opacity: 1;
+        transform: scale(1);
     }
     100% {
         filter: blur(10px);
         opacity: 0;
+        transform: scale(1.22);
     }
 }
