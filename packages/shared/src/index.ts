@@ -59,6 +59,8 @@ export type AnimeMetadataSearchSort =
 export type AnimeMetadataSeason = "WINTER" | "SPRING" | "SUMMER" | "FALL";
 
 export interface AnimeMetadataSearchOptions {
+  page?: number;
+  perPage?: number;
   season?: AnimeMetadataSeason;
   seasonYear?: number;
   sort?: AnimeMetadataSearchSort;
@@ -102,6 +104,14 @@ export interface AnimeMetadataSearchResult {
   trending?: number;
   updatedAt?: number;
   siteUrl?: string;
+}
+
+export interface AnimeMetadataSearchPage {
+  hasNextPage: boolean;
+  items: AnimeMetadataSearchResult[];
+  page: number;
+  perPage: number;
+  total?: number;
 }
 
 export interface AnimeAiringEpisode {

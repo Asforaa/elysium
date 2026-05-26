@@ -80,6 +80,7 @@ import {
   retryDownload,
   savePlaybackProgress,
   searchAnimeMetadata,
+  searchAnimeMetadataPage,
   searchMedia,
   startDownload,
   loginUser,
@@ -324,7 +325,7 @@ function App({
     },
   );
 
-  const animeMetadataSearchQuery = useQuery({
+  const animeMetadataSearchQuery = useInfiniteQuery({
     queryKey: [
       'metadata',
       'anilist',
@@ -334,17 +335,27 @@ function App({
       routeAnimeSearchSeason,
       routeAnimeSearchSeasonYear,
     ],
-    queryFn: () =>
-      searchAnimeMetadata(trimmedAnimeQuery, {
+    queryFn: ({ pageParam }) =>
+      searchAnimeMetadataPage(trimmedAnimeQuery, {
+        page: Number(pageParam),
+        perPage: 24,
         season: routeAnimeSearchSeason,
         seasonYear: routeAnimeSearchSeasonYear,
         sort: animeSearchSort,
       }),
     enabled: showingAnimeSearch,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasNextPage ? lastPage.page + 1 : undefined,
+    initialPageParam: 1,
     staleTime: 60_000,
   });
 
-  const animeResults = animeMetadataSearchQuery.data ?? EMPTY_ANIME_RESULTS;
+  const animeResults = useMemo(
+    () =>
+      animeMetadataSearchQuery.data?.pages.flatMap((page) => page.items) ??
+      EMPTY_ANIME_RESULTS,
+    [animeMetadataSearchQuery.data],
+  );
   const activeAnimeId = selectedAnimeId;
 
   const animeDetailsQuery = useQuery({
@@ -862,7 +873,9 @@ function App({
             !placeholderRoute &&
             showingAnimeSearch ? (
               <AnimeSearchResults
-                loading={animeMetadataSearchQuery.isFetching}
+                fetchingNextPage={animeMetadataSearchQuery.isFetchingNextPage}
+                hasNextPage={Boolean(animeMetadataSearchQuery.hasNextPage)}
+                loading={animeMetadataSearchQuery.isLoading}
                 results={animeResults}
                 routeTitle={routeAnimeSearchTitle}
                 season={routeAnimeSearchSeason}
@@ -870,6 +883,7 @@ function App({
                 selectedId={selectedAnimeId}
                 sort={animeSearchSort}
                 error={animeMetadataSearchQuery.error}
+                onLoadMore={() => void animeMetadataSearchQuery.fetchNextPage()}
                 onSortChange={handleAnimeSearchSortChange}
                 onSelect={handleAnimeSelect}
               />
@@ -1289,6 +1303,8 @@ function AnimeSearchBar({
 
 function AnimeSearchResults({
   error,
+  fetchingNextPage,
+  hasNextPage,
   loading,
   results,
   routeTitle,
@@ -1296,10 +1312,13 @@ function AnimeSearchResults({
   seasonYear,
   selectedId,
   sort,
+  onLoadMore,
   onSortChange,
   onSelect,
 }: {
   error: Error | null;
+  fetchingNextPage: boolean;
+  hasNextPage: boolean;
   loading: boolean;
   results: AnimeMetadataSearchResult[];
   routeTitle?: string;
@@ -1307,9 +1326,11 @@ function AnimeSearchResults({
   seasonYear?: number;
   selectedId?: number;
   sort: AnimeMetadataSearchSort;
+  onLoadMore: () => void;
   onSortChange: (sort: AnimeMetadataSearchSort) => void;
   onSelect: (item: AnimeMetadataSearchResult) => void;
 }) {
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const selectedSort =
     ANIME_SEARCH_SORT_OPTIONS.find((option) => option.id === sort) ??
     ANIME_SEARCH_SORT_OPTIONS[1];
@@ -1334,15 +1355,41 @@ function AnimeSearchResults({
     season ? formatAnimeSeason(season) : undefined,
   ].filter((value): value is string => Boolean(value));
 
+  useEffect(() => {
+    const target = loadMoreRef.current;
+
+    if (!target || loading || fetchingNextPage || !hasNextPage) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: '640px 0px' },
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, [fetchingNextPage, hasNextPage, loading, onLoadMore]);
+
   return (
     <section className="space-y-6 py-2">
-      {title ? <h1 className="text-3xl font-semibold">{title}</h1> : null}
       <Dialog>
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center gap-3">
+          {title ? (
+            <h1 className="mr-1 text-3xl font-semibold">{title}</h1>
+          ) : null}
+          {activeFilters.map((filter) => (
+            <Badge key={filter}>{filter}</Badge>
+          ))}
           <DialogTrigger asChild>
             <Button
               aria-label="Open search filters"
-              className="size-11"
+              className="ml-auto size-11"
               size="icon"
               type="button"
               variant="secondary"
@@ -1402,14 +1449,6 @@ function AnimeSearchResults({
         </DialogContent>
       </Dialog>
 
-      {activeFilters.length ? (
-        <div className="flex flex-wrap gap-2">
-          {activeFilters.map((filter) => (
-            <Badge key={filter}>{filter}</Badge>
-          ))}
-        </div>
-      ) : null}
-
       {loading ? (
         <AnimeSearchSkeletonGrid />
       ) : (
@@ -1424,6 +1463,8 @@ function AnimeSearchResults({
           ))}
         </div>
       )}
+      <div ref={loadMoreRef} />
+      {fetchingNextPage ? <AnimeSearchSkeletonGrid compact /> : null}
 
       {!loading && results.length === 0 && !error ? (
         <p className="text-sm text-muted-foreground">No AniList results found.</p>
@@ -1433,10 +1474,10 @@ function AnimeSearchResults({
   );
 }
 
-function AnimeSearchSkeletonGrid() {
+function AnimeSearchSkeletonGrid({ compact = false }: { compact?: boolean }) {
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-      {Array.from({ length: 12 }, (_, index) => (
+      {Array.from({ length: compact ? 6 : 12 }, (_, index) => (
         <div className="space-y-3" key={index}>
           <Skeleton className="aspect-[2/3] w-full rounded-md" />
           <Skeleton className="h-4 w-4/5" />

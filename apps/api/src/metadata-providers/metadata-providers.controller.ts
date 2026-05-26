@@ -55,6 +55,28 @@ export class MetadataProvidersController {
       });
   }
 
+  @Get(':providerId/search-page')
+  searchAnimePage(
+    @Param('providerId') providerId: MetadataProviderId,
+    @Query('q') query?: string,
+    @Query('sort') sort?: string,
+    @Query('season') season?: string,
+    @Query('year') year?: string,
+    @Query('seasonYear') seasonYear?: string,
+    @Query('page') page?: string,
+    @Query('perPage') perPage?: string,
+  ) {
+    return this.metadataProviders
+      .getAdapter(providerId)
+      .searchAnimePage(query?.trim() ?? '', {
+        page: normalizeOptionalPositiveInteger(page, 'page'),
+        perPage: normalizeOptionalPositiveInteger(perPage, 'perPage'),
+        season: normalizeAnimeSeason(season),
+        seasonYear: normalizeAnimeSeasonYear(seasonYear ?? year),
+        sort: normalizeAnimeSearchSort(sort),
+      });
+  }
+
   @Get(':providerId/airing-schedule')
   listAiringSchedule(
     @Param('providerId') providerId: MetadataProviderId,

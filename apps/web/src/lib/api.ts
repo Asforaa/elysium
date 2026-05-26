@@ -3,6 +3,7 @@ import type {
   AnimeAiringSchedulePage,
   AnimeMetadataDetails,
   AnimeMetadataSearchOptions,
+  AnimeMetadataSearchPage,
   AnimeMetadataSearchResult,
   AnimeMetadataSearchSort,
   DownloadedAnime,
@@ -81,6 +82,30 @@ export async function searchAnimeMetadata(
   }
 
   return getJson(`/metadata/anilist/search?${params.toString()}`);
+}
+
+export async function searchAnimeMetadataPage(
+  query: string,
+  options: AnimeMetadataSearchOptions | AnimeMetadataSearchSort = 'popularity',
+): Promise<AnimeMetadataSearchPage> {
+  const normalizedOptions =
+    typeof options === 'string' ? { sort: options } : options;
+  const params = new URLSearchParams({
+    page: String(normalizedOptions.page ?? 1),
+    perPage: String(normalizedOptions.perPage ?? 24),
+    q: query,
+    sort: normalizedOptions.sort ?? 'popularity',
+  });
+
+  if (normalizedOptions.season) {
+    params.set('season', normalizedOptions.season);
+  }
+
+  if (normalizedOptions.seasonYear) {
+    params.set('year', String(normalizedOptions.seasonYear));
+  }
+
+  return getJson(`/metadata/anilist/search-page?${params.toString()}`);
 }
 
 export async function getAnimeMetadata(id: number): Promise<AnimeMetadataDetails> {

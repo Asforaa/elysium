@@ -2,6 +2,7 @@ import type {
   AnimeAiringScheduleOptions,
   AnimeAiringSchedulePage,
   AnimeMetadataDetails,
+  AnimeMetadataSearchPage,
   AnimeMetadataSearchOptions,
   AnimeMetadataSearchResult,
   MetadataProvider,
@@ -13,6 +14,10 @@ export interface MetadataProviderAdapter {
     query: string,
     options?: AnimeMetadataSearchOptions,
   ): Promise<AnimeMetadataSearchResult[]>;
+  searchAnimePage(
+    query: string,
+    options?: AnimeMetadataSearchOptions,
+  ): Promise<AnimeMetadataSearchPage>;
   listAiringSchedule(
     options?: AnimeAiringScheduleOptions,
   ): Promise<AnimeAiringSchedulePage>;

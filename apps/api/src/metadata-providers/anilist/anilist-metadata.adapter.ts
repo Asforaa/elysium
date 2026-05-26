@@ -6,6 +6,7 @@ import type {
   AnimeImage,
   AnimeMetadataDetails,
   AnimeMetadataSearchOptions,
+  AnimeMetadataSearchPage,
   AnimeMetadataSearchResult,
   AnimeMetadataSearchSort,
   AnimeRelation,
@@ -157,8 +158,14 @@ const ANILIST_SEARCH_SORTS: Record<AnimeMetadataSearchSort, string[]> = {
 };
 
 const SEARCH_QUERY = `
-  query ElysiumAnimeSearch($search: String, $perPage: Int!, $season: MediaSeason, $seasonYear: Int, $sort: [MediaSort]) {
-    Page(page: 1, perPage: $perPage) {
+  query ElysiumAnimeSearch($page: Int!, $search: String, $perPage: Int!, $season: MediaSeason, $seasonYear: Int, $sort: [MediaSort]) {
+    Page(page: $page, perPage: $perPage) {
+      pageInfo {
+        currentPage
+        hasNextPage
+        perPage
+        total
+      }
       media(search: $search, type: ANIME, season: $season, seasonYear: $seasonYear, sort: $sort) {
         id
         idMal
@@ -470,17 +477,39 @@ export class AniListMetadataAdapter implements MetadataProviderAdapter {
     query: string,
     options: AnimeMetadataSearchOptions = {},
   ): Promise<AnimeMetadataSearchResult[]> {
+    const page = await this.searchAnimePage(query, options);
+
+    return page.items;
+  }
+
+  async searchAnimePage(
+    query: string,
+    options: AnimeMetadataSearchOptions = {},
+  ): Promise<AnimeMetadataSearchPage> {
+    const page = normalizePositiveInteger(options.page, 1);
+    const perPage = Math.min(normalizePositiveInteger(options.perPage, 12), 50);
     const data = await this.postGraphql<{
-      Page?: { media?: AniListMediaBase[] | null } | null;
+      Page?: {
+        media?: AniListMediaBase[] | null;
+        pageInfo?: AniListPageInfo | null;
+      } | null;
     }>(SEARCH_QUERY, {
+      page,
       search: query.trim() || null,
-      perPage: 12,
+      perPage,
       season: options.season ?? null,
       seasonYear: options.seasonYear ?? null,
       sort: ANILIST_SEARCH_SORTS[options.sort ?? 'popularity'],
     });
+    const pageInfo = data.Page?.pageInfo;
 
-    return (data.Page?.media ?? []).map((media) => this.toSearchResult(media));
+    return {
+      hasNextPage: Boolean(pageInfo?.hasNextPage),
+      items: (data.Page?.media ?? []).map((media) => this.toSearchResult(media)),
+      page: pageInfo?.currentPage ?? page,
+      perPage: pageInfo?.perPage ?? perPage,
+      total: pageInfo?.total ?? undefined,
+    };
   }
 
   async getAnimeDetails(id: number): Promise<AnimeMetadataDetails> {
