@@ -33,6 +33,16 @@ export interface MediaLibraryRenamePlanAction {
     matchedTitle?: string;
     matchConfidence?: LocalAnimeMatch['confidence'];
     matchScore?: number;
+    verifiedMediaOverride?: {
+      anilistId?: number;
+      episodes?: number;
+      format: string;
+      kind: 'mal-verified-entity' | 'mal-verified-file';
+      malId: number;
+      note: string;
+      title: string;
+      verifiedBy: string;
+    };
   };
   sourceRelativePath: string;
   targetRelativePath?: string;
@@ -88,6 +98,29 @@ interface LocalEpisodeNumberingOverride {
   verifiedBy: string;
 }
 
+interface VerifiedMediaOverrideEntity {
+  anilistId?: number;
+  category: MediaLibraryCategory;
+  key: string;
+  malId: number;
+  matchedTitle?: string;
+  title: string;
+}
+
+interface VerifiedMediaOverride {
+  anilistId?: number;
+  entity?: VerifiedMediaOverrideEntity;
+  episodes?: number;
+  format: string;
+  kind: 'mal-verified-entity' | 'mal-verified-file';
+  malId: number;
+  note: string;
+  pattern: RegExp;
+  targetToken: string;
+  title: string;
+  verifiedBy: string;
+}
+
 const VIDEO_LIKE_KINDS = new Set(['video']);
 const LOCAL_EPISODE_NUMBERING_OVERRIDES: LocalEpisodeNumberingOverride[] = [
   {
@@ -122,6 +155,210 @@ const LOCAL_EPISODE_NUMBERING_OVERRIDES: LocalEpisodeNumberingOverride[] = [
     verifiedBy: 'TVDB/Gangsta wiki recap check, 2026-05-26',
   },
 ];
+const VERIFIED_MEDIA_OVERRIDES: VerifiedMediaOverride[] = [
+  {
+    anilistId: 97891,
+    entity: verifiedAnimeEntity({
+      anilistId: 97891,
+      malId: 34465,
+      title: 'Ao no Exorcist Kyoto Fujouou-hen OVA',
+    }),
+    episodes: 2,
+    format: 'OVA',
+    kind: 'mal-verified-entity',
+    malId: 34465,
+    note: 'MAL lists the Kyoto Saga OVAs as their own 2-episode OVA entity.',
+    pattern:
+      /^Anime\/Series\/Ao no Exorcist\/Season 2\/Ao no Exorcist Kyoto Fujouou-hen اوفا  1\.mp4$/u,
+    targetToken: 'EP 01',
+    title: 'Ao no Exorcist Kyoto Fujouou-hen OVA',
+    verifiedBy: 'MAL/Jikan OVA entity check, 2026-05-26',
+  },
+  {
+    anilistId: 97891,
+    entity: verifiedAnimeEntity({
+      anilistId: 97891,
+      malId: 34465,
+      title: 'Ao no Exorcist Kyoto Fujouou-hen OVA',
+    }),
+    episodes: 2,
+    format: 'OVA',
+    kind: 'mal-verified-entity',
+    malId: 34465,
+    note: 'MAL lists the Kyoto Saga OVAs as their own 2-episode OVA entity.',
+    pattern:
+      /^Anime\/Series\/Ao no Exorcist\/Season 2\/Ao no Exorcist Kyoto Fujouou-hen اوفا  2\.mp4$/u,
+    targetToken: 'EP 02',
+    title: 'Ao no Exorcist Kyoto Fujouou-hen OVA',
+    verifiedBy: 'MAL/Jikan OVA entity check, 2026-05-26',
+  },
+  {
+    anilistId: 101166,
+    episodes: 1,
+    format: 'MOVIE',
+    kind: 'mal-verified-file',
+    malId: 37348,
+    note: 'MAL lists Orion no Ya as a one-entry movie.',
+    pattern:
+      /^Anime\/Series\/Is it wrong to try to  pick up girls in a dungeon\/movie \(watch after S1\)\/Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka Movie Orion no Ya\.mp4$/u,
+    targetToken: 'Movie',
+    title:
+      'Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka Movie Orion no Ya',
+    verifiedBy: 'MAL/Jikan movie entity check, 2026-05-26',
+  },
+  {
+    anilistId: 21660,
+    entity: verifiedAnimeEntity({
+      anilistId: 21660,
+      malId: 32801,
+      title: 'Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka OVA',
+    }),
+    episodes: 1,
+    format: 'OVA',
+    kind: 'mal-verified-entity',
+    malId: 32801,
+    note: 'MAL lists the season 1 DanMachi OVA as its own one-episode OVA entity.',
+    pattern:
+      /^Anime\/Series\/Is it wrong to try to  pick up girls in a dungeon\/season 1\/\[Witanime\.com\] OVA BD-FHD\.mp4$/u,
+    targetToken: 'EP 01',
+    title: 'Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka OVA',
+    verifiedBy: 'MAL/Jikan OVA entity check, 2026-05-26',
+  },
+  {
+    anilistId: 112125,
+    entity: verifiedAnimeEntity({
+      anilistId: 112125,
+      malId: 40453,
+      title: 'Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka II OVA',
+    }),
+    episodes: 1,
+    format: 'OVA',
+    kind: 'mal-verified-entity',
+    malId: 40453,
+    note: 'MAL lists the season 2 DanMachi OVA as its own one-episode OVA entity.',
+    pattern:
+      /^Anime\/Series\/Is it wrong to try to  pick up girls in a dungeon\/season 2\/S2 OVA-FHD\.mp4$/u,
+    targetToken: 'EP 01',
+    title: 'Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka II OVA',
+    verifiedBy: 'MAL/Jikan OVA entity check, 2026-05-26',
+  },
+  {
+    anilistId: 127368,
+    entity: verifiedAnimeEntity({
+      anilistId: 127368,
+      malId: 44983,
+      title: 'Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka III OVA',
+    }),
+    episodes: 1,
+    format: 'OVA',
+    kind: 'mal-verified-entity',
+    malId: 44983,
+    note: 'MAL lists the season 3 DanMachi OVA as its own one-episode OVA entity.',
+    pattern:
+      /^Anime\/Series\/Is it wrong to try to  pick up girls in a dungeon\/season 3\/S3 OVA HD\.mp4$/u,
+    targetToken: 'EP 01',
+    title: 'Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka III OVA',
+    verifiedBy: 'MAL/Jikan OVA entity check, 2026-05-26',
+  },
+  {
+    anilistId: 101213,
+    entity: verifiedAnimeEntity({
+      anilistId: 101213,
+      malId: 37377,
+      title: 'Masamune-kun no Revenge OVA',
+    }),
+    episodes: 1,
+    format: 'OVA',
+    kind: 'mal-verified-entity',
+    malId: 37377,
+    note: 'MAL lists the Masamune-kun no Revenge OVA as its own one-episode OVA entity.',
+    pattern:
+      /^Anime\/Series\/Masamune-kun no Revenge\/\[Witanime\.com\] MKNR OVA BD-FHD\.mp4$/u,
+    targetToken: 'EP 01',
+    title: 'Masamune-kun no Revenge OVA',
+    verifiedBy: 'MAL/Jikan OVA entity check, 2026-05-26',
+  },
+  {
+    anilistId: 21416,
+    entity: verifiedAnimeEntity({
+      anilistId: 21416,
+      malId: 31772,
+      title: 'One Punch Man Specials',
+    }),
+    episodes: 6,
+    format: 'SPECIAL',
+    kind: 'mal-verified-entity',
+    malId: 31772,
+    note: 'MAL lists these as One Punch Man Specials, separate from the 24-minute Road to Hero OVA.',
+    pattern:
+      /^Anime\/Series\/One punch man season 1\/One Punch Man حلقة خاصة  1\.mp4$/u,
+    targetToken: 'Special 01',
+    title: 'One Punch Man Specials',
+    verifiedBy: 'MAL/Jikan specials entity and duration check, 2026-05-26',
+  },
+  {
+    anilistId: 21416,
+    entity: verifiedAnimeEntity({
+      anilistId: 21416,
+      malId: 31772,
+      title: 'One Punch Man Specials',
+    }),
+    episodes: 6,
+    format: 'SPECIAL',
+    kind: 'mal-verified-entity',
+    malId: 31772,
+    note: 'MAL lists these as One Punch Man Specials, separate from the 24-minute Road to Hero OVA.',
+    pattern:
+      /^Anime\/Series\/One punch man season 1\/One Punch Man حلقة خاصة  2\.mp4$/u,
+    targetToken: 'Special 02',
+    title: 'One Punch Man Specials',
+    verifiedBy: 'MAL/Jikan specials entity and duration check, 2026-05-26',
+  },
+  {
+    anilistId: 21416,
+    entity: verifiedAnimeEntity({
+      anilistId: 21416,
+      malId: 31772,
+      title: 'One Punch Man Specials',
+    }),
+    episodes: 6,
+    format: 'SPECIAL',
+    kind: 'mal-verified-entity',
+    malId: 31772,
+    note: 'MAL lists these as One Punch Man Specials, separate from the 24-minute Road to Hero OVA.',
+    pattern:
+      /^Anime\/Series\/One punch man season 1\/One Punch Man حلقة خاصة  3\.mp4$/u,
+    targetToken: 'Special 03',
+    title: 'One Punch Man Specials',
+    verifiedBy: 'MAL/Jikan specials entity and duration check, 2026-05-26',
+  },
+  {
+    anilistId: 100049,
+    episodes: 1,
+    format: 'MOVIE',
+    kind: 'mal-verified-file',
+    malId: 36286,
+    note: 'MAL lists Memory Snow as a one-entry movie; AniList groups it under the Re:Zero OVAs entity.',
+    pattern:
+      /^Anime\/Series\/Re Zero\/Re Zero - Memory Snow \(Movie\)\/\[Witanime\.com\] RZKHISMS BD-FHD\.mp4$/u,
+    targetToken: 'Memory Snow',
+    title: 'Re Zero kara Hajimeru Isekai Seikatsu Memory Snow',
+    verifiedBy: 'MAL/Jikan movie entity check, 2026-05-26',
+  },
+  {
+    anilistId: 100049,
+    episodes: 1,
+    format: 'MOVIE',
+    kind: 'mal-verified-file',
+    malId: 38414,
+    note: 'MAL lists The Frozen Bond as a one-entry movie; AniList groups it under the Re:Zero OVAs entity.',
+    pattern:
+      /^Anime\/Series\/Re Zero\/Re Zero - The Frozen Bond \(Movie\)\/\[Witanime\.com\] RZKHISHNK BD-FHD\.mp4$/u,
+    targetToken: 'The Frozen Bond',
+    title: 'Re Zero kara Hajimeru Isekai Seikatsu Hyouketsu no Kizuna',
+    verifiedBy: 'MAL/Jikan movie entity check, 2026-05-26',
+  },
+];
 
 export async function planMediaLibraryRenames({
   matchReportPath,
@@ -146,6 +383,16 @@ export async function planMediaLibraryRenames({
 export async function findLatestAniListMatchReport(repoRoot: string) {
   const reportDir = join(repoRoot, 'docs/match-reports');
 
+  return findLatestReport(reportDir, /^anilist-match-.+\.json$/u);
+}
+
+export async function findLatestRenamePlan(repoRoot: string) {
+  const reportDir = join(repoRoot, 'docs/rename-plans');
+
+  return findLatestReport(reportDir, /^media-rename-plan-.+\.json$/u);
+}
+
+async function findLatestReport(reportDir: string, pattern: RegExp) {
   if (!existsSync(reportDir)) {
     return undefined;
   }
@@ -153,7 +400,7 @@ export async function findLatestAniListMatchReport(repoRoot: string) {
   const entries = await readdir(reportDir);
   const candidates = await Promise.all(
     entries
-      .filter((entry) => /^anilist-match-.+\.json$/u.test(entry))
+      .filter((entry) => pattern.test(entry))
       .map(async (entry) => {
         const path = join(reportDir, entry);
         const fileStat = await stat(path);
@@ -234,20 +481,29 @@ class RenamePlanner {
       };
     }
 
+    const verifiedMediaOverride = getVerifiedMediaOverride(file);
+    const localEpisodeOverride = getLocalEpisodeNumberingOverride(file);
     const match =
       file.entityTitleGuess && isAnimeCategory(file.category)
         ? this.matchByLocalKey.get(
             localMatchKey(file.category, file.entityTitleGuess),
           )
         : undefined;
-    const entity = match?.bestMatch
-      ? this.getOrCreateMatchedEntity(match)
-      : this.getOrCreateLocalEntity(file);
-    const localEpisodeOverride = getLocalEpisodeNumberingOverride(file);
+    const entity = verifiedMediaOverride?.entity
+      ? this.getOrCreateVerifiedEntity(verifiedMediaOverride.entity)
+      : match?.bestMatch
+        ? this.getOrCreateMatchedEntity(match)
+        : this.getOrCreateLocalEntity(file);
     const targetRelativePath = toPosixPath(
       join(
         entityFolder(entity),
-        this.buildTargetFilename(file, entity, match, localEpisodeOverride),
+        this.buildTargetFilename(
+          file,
+          entity,
+          match,
+          localEpisodeOverride,
+          verifiedMediaOverride,
+        ),
       ),
     );
     const issues = [
@@ -258,7 +514,12 @@ class RenamePlanner {
       ...(!match && isAnimeCategory(file.category)
         ? ['missing-anilist-match']
         : []),
-      ...(requiresMalEpisodeVerification(file, match, localEpisodeOverride)
+      ...(requiresMalEpisodeVerification(
+        file,
+        match,
+        localEpisodeOverride,
+        verifiedMediaOverride,
+      )
         ? ['mal-episode-list-verification-required']
         : []),
       ...(!isAnimeCategory(file.category)
@@ -274,7 +535,11 @@ class RenamePlanner {
       entityKey: entity.key,
       fileKind: file.fileKind,
       issues,
-      metadata: buildActionMetadata(match, localEpisodeOverride),
+      metadata: buildActionMetadata(
+        match,
+        localEpisodeOverride,
+        verifiedMediaOverride,
+      ),
       sourceRelativePath: file.relativePath,
       targetRelativePath,
     };
@@ -359,11 +624,34 @@ class RenamePlanner {
     return entity;
   }
 
+  private getOrCreateVerifiedEntity(
+    entityOverride: VerifiedMediaOverrideEntity,
+  ) {
+    const existing = this.entities.get(entityOverride.key);
+
+    if (existing) {
+      return existing;
+    }
+
+    const entity: PlannedEntity = {
+      category: entityOverride.category,
+      elysiumId: formatElysiumId(this.entities.size + 1),
+      key: entityOverride.key,
+      matchedTitle: entityOverride.matchedTitle ?? entityOverride.title,
+      title: filesystemTitle(entityOverride.title),
+    };
+
+    this.entities.set(entity.key, entity);
+
+    return entity;
+  }
+
   private buildTargetFilename(
     file: MediaLibraryScanFile,
     entity: PlannedEntity,
     match?: LocalAnimeMatch,
     localEpisodeOverride?: LocalEpisodeNumberingOverride,
+    verifiedMediaOverride?: VerifiedMediaOverride,
   ) {
     const title = entity.title;
     const qualitySuffix = file.parsedQuality ? ` - ${file.parsedQuality}` : '';
@@ -377,6 +665,10 @@ class RenamePlanner {
           : `S${pad2(season)}E${pad2(file.parsedEpisodeNumber)}`;
 
       return `${title} - ${episodeToken}${qualitySuffix}${extension}`;
+    }
+
+    if (verifiedMediaOverride) {
+      return `${title} - ${verifiedMediaOverride.targetToken}${qualitySuffix}${extension}`;
     }
 
     if (localEpisodeOverride) {
@@ -578,9 +870,31 @@ function isEpisodeLike(file: MediaLibraryScanFile, match?: LocalAnimeMatch) {
   return format === 'TV' || format === 'ONA';
 }
 
+function verifiedAnimeEntity({
+  anilistId,
+  malId,
+  title,
+}: {
+  anilistId?: number;
+  malId: number;
+  title: string;
+}): VerifiedMediaOverrideEntity {
+  const providerKey = anilistId ? `anilist:${anilistId}` : `mal:${malId}`;
+
+  return {
+    anilistId,
+    category: 'anime-series',
+    key: providerKey,
+    malId,
+    matchedTitle: title,
+    title,
+  };
+}
+
 function buildActionMetadata(
   match?: LocalAnimeMatch,
   localEpisodeOverride?: LocalEpisodeNumberingOverride,
+  verifiedMediaOverride?: VerifiedMediaOverride,
 ): MediaLibraryRenamePlanAction['metadata'] {
   const metadata: MediaLibraryRenamePlanAction['metadata'] = {};
 
@@ -605,6 +919,22 @@ function buildActionMetadata(
     };
   }
 
+  if (verifiedMediaOverride) {
+    metadata.anilistId = verifiedMediaOverride.anilistId ?? metadata.anilistId;
+    metadata.malId = verifiedMediaOverride.malId;
+    metadata.matchedTitle = verifiedMediaOverride.title;
+    metadata.verifiedMediaOverride = {
+      anilistId: verifiedMediaOverride.anilistId,
+      episodes: verifiedMediaOverride.episodes,
+      format: verifiedMediaOverride.format,
+      kind: verifiedMediaOverride.kind,
+      malId: verifiedMediaOverride.malId,
+      note: verifiedMediaOverride.note,
+      title: verifiedMediaOverride.title,
+      verifiedBy: verifiedMediaOverride.verifiedBy,
+    };
+  }
+
   return Object.keys(metadata).length ? metadata : undefined;
 }
 
@@ -614,20 +944,27 @@ function getLocalEpisodeNumberingOverride(file: MediaLibraryScanFile) {
   );
 }
 
+function getVerifiedMediaOverride(file: MediaLibraryScanFile) {
+  return VERIFIED_MEDIA_OVERRIDES.find((override) =>
+    override.pattern.test(file.relativePath),
+  );
+}
+
 function requiresMalEpisodeVerification(
   file: MediaLibraryScanFile,
   match?: LocalAnimeMatch,
   localEpisodeOverride?: LocalEpisodeNumberingOverride,
+  verifiedMediaOverride?: VerifiedMediaOverride,
 ) {
-  if (
-    file.fileKind !== 'video' ||
-    !isAnimeCategory(file.category) ||
-    !match?.bestMatch?.idMal
-  ) {
+  if (file.fileKind !== 'video' || !isAnimeCategory(file.category)) {
     return false;
   }
 
-  if (localEpisodeOverride) {
+  if (localEpisodeOverride || verifiedMediaOverride) {
+    return false;
+  }
+
+  if (!match?.bestMatch?.idMal) {
     return false;
   }
 

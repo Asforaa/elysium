@@ -168,6 +168,16 @@ Homeserver media:
   - Verified local-release exceptions are allowed when MAL lacks the exact local numbering but external evidence and local duration checks confirm the file's role. Current exceptions:
     - Re:Zero S1 `E01` and `E1.5` are the split double-length MAL episode 1 and should plan as `EP 01A` and `EP 01B`.
     - Gangsta `E9.5` is an optional recap/special before episode 10 and should plan as `Special 01 - Recap After EP 09` with sort order `9.5`.
+- Media rename apply CLI:
+  - `bun run --filter @elysium/api library:apply-renames`
+  - It is dry-run by default and writes manifests under ignored `/docs/rename-applies`.
+  - It refuses plans with target collisions, existing target conflicts, unsupported file kinds, or remaining MAL episode verification gates.
+  - It skips notes by default because notes should import into the DB separately; pass `--include-notes` only when intentionally moving note files.
+  - It moves files only with `--execute`.
+- Media rename rollback CLI:
+  - `bun run --filter @elysium/api library:rollback-renames`
+  - It is dry-run by default and writes rollback reports under ignored `/docs/rename-rollbacks`.
+  - It uses an executed apply manifest as the rollback source and restores moved files only with `--execute`.
 
 Portless:
 
@@ -201,9 +211,16 @@ Provider smoke tests:
 - For the homeserver anime library, the matcher currently expects all `96` local anime groups to resolve high-confidence after the manual hint layer is applied.
 - Media rename planner:
   - `bun run --filter @elysium/api library:plan-renames`
-- This should generate a read-only file move manifest using the latest AniList match report, with Elysium-owned IDs in top-level entity folders and canonical filenames such as `Title - EP 01 - FHD.mp4`, `Title - Movie - HD.mp4`, `Title - OVA 01.mp4`, and `Title - Special 01.mp4`.
+- This should generate a read-only file move manifest using the latest AniList match report, with Elysium-owned IDs in top-level entity folders and canonical filenames such as `Title - EP 01 - FHD.mp4`, `Title - Movie - HD.mp4`, `Title - EP 01.mp4` for verified OVA entities, and `Title - Special 01.mp4`.
 - Any action marked `mal-episode-list-verification-required` is provisional. A future apply step must refuse to move those files until a MyAnimeList episode-list verification pass confirms the numbering/kind.
 - The planner has local numbering overrides for Re:Zero S1 split-premiere files and Gangsta `E9.5`; preserve those as metadata overrides instead of forcing them into fake MAL episode numbers.
+- The planner also has verified MAL/AniList overrides for known OVA/movie/special files such as Ao no Exorcist Kyoto OVAs, DanMachi OVAs, Masamune OVA, One Punch Man Specials, and Re:Zero OVA movies. Preserve these as metadata overrides rather than collapsing them into parent seasons.
+- Media rename apply:
+  - `bun run --filter @elysium/api library:apply-renames`
+- This should remain dry-run unless `--execute` is passed. It must write an apply manifest before/after execution state is trusted.
+- Media rename rollback:
+  - `bun run --filter @elysium/api library:rollback-renames`
+- This should remain dry-run unless `--execute` is passed and should use the executed apply manifest as its source of truth.
 
 Private docs:
 
