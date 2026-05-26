@@ -2,14 +2,18 @@ import {
   BadRequestException,
   Controller,
   Get,
+  NotFoundException,
   Param,
   Query,
+  Res,
 } from '@nestjs/common';
 import type {
   AnimeMetadataSeason,
   AnimeMetadataSearchSort,
   MetadataProviderId,
 } from '@elysium/shared';
+import { createReadStream } from 'node:fs';
+import type { Response } from 'express';
 import { MetadataProvidersService } from './metadata-providers.service';
 
 const ANIME_METADATA_SEASONS: AnimeMetadataSeason[] = [
@@ -91,19 +95,49 @@ export class MetadataProvidersController {
     });
   }
 
+  @Get(':providerId/assets/:id/:filename')
+  async getCachedAsset(
+    @Param('providerId') providerId: MetadataProviderId,
+    @Param('id') idRaw: string,
+    @Param('filename') filename: string,
+    @Res() response: Response,
+  ) {
+    const id = normalizeAnimeId(idRaw);
+    const asset = await this.metadataProviders.getCachedAssetFile(
+      providerId,
+      id,
+      filename,
+    );
+
+    if (!asset) {
+      throw new NotFoundException(`Unknown cached metadata asset: ${filename}`);
+    }
+
+    response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    response.setHeader('Content-Length', asset.size);
+    response.setHeader('Content-Type', asset.contentType);
+    createReadStream(asset.filePath).pipe(response);
+  }
+
   @Get(':providerId/anime/:id')
   getAnimeDetails(
     @Param('providerId') providerId: MetadataProviderId,
     @Param('id') idRaw: string,
   ) {
-    const id = Number(idRaw);
-
-    if (!Number.isInteger(id) || id <= 0) {
-      throw new BadRequestException('Invalid anime id');
-    }
+    const id = normalizeAnimeId(idRaw);
 
     return this.metadataProviders.getAnimeDetails(providerId, id);
   }
+}
+
+function normalizeAnimeId(value: string) {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new BadRequestException('Invalid anime id');
+  }
+
+  return id;
 }
 
 function normalizeOptionalPositiveInteger(

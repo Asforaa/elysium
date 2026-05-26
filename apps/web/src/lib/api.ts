@@ -242,7 +242,7 @@ async function getJson<T>(path: string): Promise<T> {
 
   const text = await response.text();
 
-  return (text ? JSON.parse(text) : undefined) as T;
+  return normalizeApiAssetUrls(text ? JSON.parse(text) : undefined) as T;
 }
 
 async function sendJson<T>(path: string, body: unknown): Promise<T> {
@@ -318,4 +318,25 @@ function resolveApiBaseUrl(): string {
 
 function isLoopbackHost(hostname: string) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
+
+function normalizeApiAssetUrls(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return value.startsWith('/metadata/') ? `${API_BASE_URL}${value}` : value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeApiAssetUrls(item));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        normalizeApiAssetUrls(entry),
+      ]),
+    );
+  }
+
+  return value;
 }

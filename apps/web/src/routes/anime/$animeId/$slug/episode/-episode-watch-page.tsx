@@ -541,6 +541,7 @@ export function EpisodeWatchPanel({
   episodes,
   episodesLoading,
   localFiles,
+  localFilesLoading,
   routeEpisodeNumber,
   streamingOptions,
   streamingOptionsLoading,
@@ -551,6 +552,7 @@ export function EpisodeWatchPanel({
   episodes: EpisodeSummary[];
   episodesLoading: boolean;
   localFiles: LocalMediaFile[];
+  localFilesLoading: boolean;
   routeEpisodeNumber?: string;
   streamingOptions: StreamingOption[];
   streamingOptionsLoading: boolean;
@@ -611,10 +613,12 @@ export function EpisodeWatchPanel({
   const watchTitle = `${anime.displayTitle} - ${episodeTitle}`;
   const playbackProgressQuery = useQuery({
     queryKey: ["playback", "progress", selectedLocalFile?.id],
-    queryFn: () =>
+    queryFn: async () =>
       selectedLocalFile
-        ? getPlaybackProgress({ localMediaFileId: selectedLocalFile.id })
-        : undefined,
+        ? ((await getPlaybackProgress({
+            localMediaFileId: selectedLocalFile.id,
+          })) ?? null)
+        : null,
     enabled: Boolean(selectedLocalFile?.id),
   });
 
@@ -739,6 +743,10 @@ export function EpisodeWatchPanel({
                 onPause={(event) => saveLocalProgress(event, false, true)}
                 onTimeUpdate={(event) => saveLocalProgress(event)}
               />
+            ) : localFilesLoading ? (
+              <div className="flex h-full w-full items-center justify-center bg-muted/20">
+                <Skeleton className="h-full w-full rounded-none bg-muted/20" />
+              </div>
             ) : selectedStream ? (
               <iframe
                 allow="fullscreen; encrypted-media; picture-in-picture"

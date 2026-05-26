@@ -107,6 +107,7 @@ Backend:
 - `/library/anime` should return only AniList-backed anime groups until movie/series metadata providers and routes exist. Do not mix unmatched movie/TV entities into the anime endpoint.
 - Starting any download with AniList context should cache the full AniList metadata payload locally in both PostgreSQL and filesystem metadata storage, even if only one episode is downloaded.
 - Imported/renamed anime library rows should also have AniList metadata cached locally so `/downloads` and anime detail routes can work from local state when provider access is unavailable.
+- Cached AniList metadata must include local artwork files for cover and banner images, not only remote AniList image URLs. Store artwork under ignored `.local/metadata/<provider>/<id>/` and serve it through the local API asset route.
 - Playback progress belongs in the backend `playback` module and should support both local file IDs and source episode identities for continue-watching features.
 - Use ReactPlayer for local downloaded files for now. Source-provider streaming hosts should be attached as iframe embeds from the provider adapter because they are already external player pages.
 - Use the local backend downloader for active download execution. It should try concurrent HTTP range downloads when supported, fall back to a normal stream when not, and keep Mega on its custom local `megajs` path.
@@ -193,8 +194,9 @@ Homeserver media:
   - `/library/files`, `/library/anime`, and `/library/files/:id/stream` should read imported `media_library_files` together with newly downloaded `local_media_files`.
 - Anime metadata cache CLI:
   - `bun run --filter @elysium/api library:cache-metadata`
-  - It caches AniList metadata for known imported/downloaded anime entities into PostgreSQL and ignored local JSON files.
+  - It caches AniList metadata for known imported/downloaded anime entities into PostgreSQL, ignored local JSON files, and ignored local artwork files.
   - Use `--include-cached` only when intentionally refreshing existing cached payloads.
+  - Use `--include-cached --delay-ms 0` to backfill artwork from already-cached metadata without forcing new AniList metadata lookups.
   - Keep the default delay to avoid AniList rate limits during large backfills.
 
 Portless:

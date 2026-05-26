@@ -44,4 +44,12 @@ export class MetadataProvidersService {
 
     return details;
   }
+
+  getCachedAssetFile(
+    providerId: MetadataProviderId,
+    id: number,
+    filename: string,
+  ) {
+    return this.metadataCache.getAssetFile(providerId, id, filename);
+  }
 }

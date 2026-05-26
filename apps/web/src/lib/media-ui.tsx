@@ -747,8 +747,22 @@ export function normalizeEpisodeNumber(value?: string) {
   const normalized = value
     ?.replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
     .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+  const match = normalized?.match(/\d+(?:\.\d+)?/)?.[0];
 
-  return normalized?.match(/\d+(?:\.\d+)?/)?.[0];
+  if (!match) {
+    return undefined;
+  }
+
+  const [integerPart, decimalPart] = match.split(".");
+  const integer = Number(integerPart);
+
+  if (!Number.isFinite(integer)) {
+    return match;
+  }
+
+  return decimalPart === undefined
+    ? String(integer)
+    : `${integer}.${decimalPart.replace(/0+$/u, "") || "0"}`;
 }
 
 export function toAnimeSlug(

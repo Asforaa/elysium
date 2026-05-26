@@ -5,6 +5,7 @@ import type {
   LocalMediaFile,
   MetadataProviderId,
 } from '@elysium/shared';
+import type { CachedArtworkMap } from './media-metadata-cache.service';
 import type { QueryResultRow } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
@@ -119,6 +120,7 @@ interface MediaEntityRow extends QueryResultRow {
 
 interface MediaEntityCacheTargetRow extends QueryResultRow {
   id: string;
+  metadata: Record<string, unknown> | null;
   metadata_id: number;
   metadata_provider: MetadataProviderId;
 }
@@ -591,7 +593,7 @@ export class MediaLibraryRepository {
   } = {}) {
     const result = await this.database.query<MediaEntityCacheTargetRow>(
       `
-        select id, metadata_provider, metadata_id
+        select id, metadata_provider, metadata_id, metadata
         from media_entities
         where metadata_provider is not null
           and metadata_id is not null
@@ -608,13 +610,20 @@ export class MediaLibraryRepository {
   async upsertCachedAnimeDetails({
     details,
     filePath,
+    artwork,
     provider,
   }: {
+    artwork?: CachedArtworkMap;
     details: AnimeMetadataDetails;
     filePath: string;
     provider: MetadataProviderId;
   }) {
-    const mediaEntityId = await this.upsertCachedEntity({ details, filePath, provider });
+    const mediaEntityId = await this.upsertCachedEntity({
+      artwork,
+      details,
+      filePath,
+      provider,
+    });
 
     await this.upsertExternalId({
       mediaEntityId,
@@ -664,10 +673,12 @@ export class MediaLibraryRepository {
   }
 
   private async upsertCachedEntity({
+    artwork,
     details,
     filePath,
     provider,
   }: {
+    artwork?: CachedArtworkMap;
     details: AnimeMetadataDetails;
     filePath: string;
     provider: MetadataProviderId;
@@ -737,6 +748,7 @@ export class MediaLibraryRepository {
           null,
         details.bannerImage ?? null,
         toJson({
+          artwork: artwork ?? {},
           details,
           cachedAt: new Date().toISOString(),
           provider,

@@ -204,8 +204,12 @@ function App({
     retryDownloadMutation,
     startDownloadMutation,
   } = useDownloads();
-  const { downloadedAnime, downloadedAnimeQuery, localMediaFiles } =
-    useLocalLibrary();
+  const {
+    downloadedAnime,
+    downloadedAnimeQuery,
+    localMediaFiles,
+    localMediaFilesQuery,
+  } = useLocalLibrary();
   const { continueWatching, continueWatchingQuery } = useContinueWatching();
   const currentlyWatchingAnimeIds = useMemo(
     () => getCurrentlyWatchingAnimeIds(continueWatching, localMediaFiles),
@@ -554,6 +558,7 @@ function App({
                 episodes={episodes}
                 episodesLoading={episodesLoading}
                 localFiles={selectedEpisodeFiles}
+                localFilesLoading={localMediaFilesQuery.isLoading}
                 routeEpisodeNumber={routeEpisodeNumber}
                 streamingOptions={streamingOptions}
                 streamingOptionsLoading={streamingOptionsQuery.isFetching}
