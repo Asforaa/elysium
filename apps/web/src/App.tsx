@@ -143,14 +143,6 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 
 const EMPTY_ANIME_RESULTS: AnimeMetadataSearchResult[] = [];
 const EMPTY_SEARCH_RESULTS: MediaSearchResult[] = [];
@@ -228,6 +220,12 @@ type StartDownloadInput = {
   option: DownloadOption;
 };
 
+type DownloadQualityGroup = {
+  label: string;
+  options: DownloadOption[];
+  quality: DownloadOption['quality'];
+};
+
 function App({
   animeSearchQuery: routeAnimeSearchQuery = '',
   animeSearchRoute = false,
@@ -258,6 +256,7 @@ function App({
   const trimmedAnimeQuery = animeQuery.trim();
   const showingAnimeSearch = trimmedAnimeQuery.length > 0;
   const showingEpisodeRoute = Boolean(routeEpisodeNumber);
+  const [sidebarOpen, setSidebarOpen] = useState(!showingEpisodeRoute);
 
   useEffect(() => {
     setAnimeQuery(routeAnimeSearchQuery);
@@ -266,6 +265,12 @@ function App({
   useEffect(() => {
     setAnimeSearchSort(routeAnimeSearchSort);
   }, [routeAnimeSearchSort]);
+
+  useEffect(() => {
+    if (showingEpisodeRoute) {
+      setSidebarOpen(false);
+    }
+  }, [showingEpisodeRoute]);
 
   const animeMetadataSearchQuery = useQuery({
     queryKey: ['metadata', 'anilist', 'search', trimmedAnimeQuery, animeSearchSort],
@@ -563,7 +568,11 @@ function App({
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider
+      defaultOpen={!showingEpisodeRoute}
+      open={sidebarOpen}
+      onOpenChange={setSidebarOpen}
+    >
       <ElysiumSidebar
         activeItem={
           downloadsRoute
@@ -576,13 +585,31 @@ function App({
         onNavigate={(path) => {
           void navigate({ to: path });
         }}
+        overlay={showingEpisodeRoute}
       />
       <SidebarInset className="min-h-svh min-w-0 bg-background text-foreground">
-        <div className="min-w-0 overflow-x-hidden p-4 md:p-8">
+        <div
+          className={cn(
+            'min-w-0 overflow-x-hidden',
+            showingEpisodeRoute ? 'p-3 md:px-6 md:py-4' : 'p-4 md:p-8',
+          )}
+        >
           <div className="flex min-w-0 flex-col gap-4">
-            <header className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(18rem,36rem)_minmax(0,1fr)] md:items-center">
+            <header
+              className={cn(
+                'grid gap-3 md:items-center',
+                showingEpisodeRoute
+                  ? 'md:grid-cols-[minmax(0,1fr)_auto_auto]'
+                  : 'md:grid-cols-[minmax(0,1fr)_minmax(18rem,36rem)_minmax(0,1fr)]',
+              )}
+            >
               <div className="flex min-w-0 items-center gap-2">
-                <SidebarTrigger className="-ml-2 md:hidden" />
+                <SidebarTrigger
+                  className={cn(
+                    '-ml-2',
+                    showingEpisodeRoute ? 'md:inline-flex' : 'md:hidden',
+                  )}
+                />
                 <AppBreadcrumbs
                   anime={animeDetails}
                   animeSearchRoute={animeSearchRoute || showingAnimeSearch}
@@ -595,6 +622,7 @@ function App({
               </div>
               <div className="flex min-w-0 items-center justify-center md:col-start-2 md:row-start-1">
                 <AnimeSearchBar
+                  compact={showingEpisodeRoute}
                   focusTick={animeSearchFocusTick}
                   query={animeQuery}
                   onQueryChange={handleAnimeQueryChange}
@@ -668,10 +696,13 @@ function App({
               <EpisodeWatchPanel
                 anime={animeDetails}
                 episode={selectedEpisode}
+                episodes={episodes}
+                episodesLoading={episodesLoading}
                 localFiles={selectedEpisodeFiles}
                 routeEpisodeNumber={routeEpisodeNumber}
                 streamingOptions={streamingOptions}
                 streamingOptionsLoading={streamingOptionsQuery.isFetching}
+                onEpisodeSelect={handleEpisodeSelect}
               />
             ) : null}
 
@@ -727,89 +758,19 @@ function App({
             showingEpisodeRoute &&
             !showingAnimeSearch &&
             animeDetails ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Download Options</CardTitle>
-                  <CardDescription>
-                    {selectedEpisode
-                      ? `${selectedEpisode.mediaTitle} ${formatEpisodeTitle(selectedEpisode)}`
-                      : 'Select an episode'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {downloadOptionsQuery.isLoading ? (
-                    <ResultSkeleton />
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Quality</TableHead>
-                          <TableHead>Provider</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Source URL</TableHead>
-                          <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {downloadOptions.map((option) => {
-                          const job = downloadJobByUrl.get(option.providerUrl);
-                          const support = getDownloadSupport(option);
-                          const active = job ? isActiveDownloadStatus(job.status) : false;
-                          const completed = job?.status === 'completed';
-                          const mutating =
-                            startDownloadMutation.isPending ||
-                            retryDownloadMutation.isPending;
-
-                          return (
-                            <TableRow key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}>
-                              <TableCell>
-                                <Badge variant="outline">{option.quality}</Badge>
-                              </TableCell>
-                              <TableCell>{formatHostProvider(option.hostProvider)}</TableCell>
-                              <TableCell>
-                                {job ? (
-                                  <JobStatusBadge job={job} />
-                                ) : (
-                                  <Badge variant={support.supported ? 'secondary' : 'outline'}>
-                                    {support.label}
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="max-w-[18rem] truncate font-mono text-xs">
-                                {option.providerUrl}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  disabled={
-                                    !support.supported ||
-                                    active ||
-                                    completed ||
-                                    mutating
-                                  }
-                                  size="sm"
-                                  type="button"
-                                  variant={job?.status === 'completed' ? 'outline' : 'default'}
-                                  onClick={() => handleDownload(option, job)}
-                                >
-                                  <Download />
-                                  {getDownloadButtonLabel(job, support.supported)}
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  )}
-                  {downloadOptionsQuery.isError ? <ErrorText error={downloadOptionsQuery.error} /> : null}
-                  {startDownloadMutation.isError ? (
-                    <ErrorText error={startDownloadMutation.error} />
-                  ) : null}
-                  {retryDownloadMutation.isError ? (
-                    <ErrorText error={retryDownloadMutation.error} />
-                  ) : null}
-                </CardContent>
-              </Card>
+              <DownloadOptionsStepper
+                downloadOptions={downloadOptions}
+                downloadOptionsError={downloadOptionsQuery.error}
+                downloadOptionsLoading={downloadOptionsQuery.isLoading}
+                downloadJobByUrl={downloadJobByUrl}
+                mutating={
+                  startDownloadMutation.isPending ||
+                  retryDownloadMutation.isPending
+                }
+                retryError={retryDownloadMutation.error}
+                startError={startDownloadMutation.error}
+                onDownload={handleDownload}
+              />
             ) : null}
 
             {!downloadsRoute &&
@@ -955,10 +916,12 @@ function AppBreadcrumbs({
 }
 
 function AnimeSearchBar({
+  compact = false,
   focusTick,
   query,
   onQueryChange,
 }: {
+  compact?: boolean;
   focusTick: number;
   query: string;
   onQueryChange: (value: string) => void;
@@ -981,7 +944,14 @@ function AnimeSearchBar({
   }, [focusTick, query]);
 
   return (
-    <div className="relative w-full max-w-xl">
+    <div
+      className={cn(
+        'relative w-full transition-[width,max-width] duration-200',
+        compact
+          ? 'sm:w-56 sm:max-w-56 sm:focus-within:w-80 sm:focus-within:max-w-80'
+          : 'max-w-xl',
+      )}
+    >
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         aria-label="Search"
@@ -1452,17 +1422,23 @@ function ElysiumSeekFeedback({ feedback }: { feedback: SeekFeedback }) {
 function EpisodeWatchPanel({
   anime,
   episode,
+  episodes,
+  episodesLoading,
   localFiles,
   routeEpisodeNumber,
   streamingOptions,
   streamingOptionsLoading,
+  onEpisodeSelect,
 }: {
   anime: AnimeMetadataDetails;
   episode: EpisodeSummary | undefined;
+  episodes: EpisodeSummary[];
+  episodesLoading: boolean;
   localFiles: LocalMediaFile[];
   routeEpisodeNumber?: string;
   streamingOptions: StreamingOption[];
   streamingOptionsLoading: boolean;
+  onEpisodeSelect: (episode: EpisodeSummary) => void;
 }) {
   const queryClient = useQueryClient();
   const progressSaveMutation = useMutation({
@@ -1492,6 +1468,16 @@ function EpisodeWatchPanel({
   );
   const selectedStream =
     playableStreams[selectedStreamIndex] ?? playableStreams[0];
+  const episodeDrawerItems = useMemo(
+    () => getEpisodeDrawerItems(episodes, episode, routeEpisodeNumber),
+    [episodes, episode, routeEpisodeNumber],
+  );
+  const episodeTitle = episode
+    ? formatEpisodeTitle(episode)
+    : routeEpisodeNumber
+      ? `Episode ${routeEpisodeNumber}`
+      : 'Episode';
+  const watchTitle = `${anime.displayTitle} - ${episodeTitle}`;
   const playbackProgressQuery = useQuery({
     queryKey: ['playback', 'progress', selectedLocalFile?.id],
     queryFn: () =>
@@ -1567,39 +1553,59 @@ function EpisodeWatchPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          {anime.displayTitle}
-          {episode
-            ? ` - ${formatEpisodeTitle(episode)}`
-            : routeEpisodeNumber
-              ? ` - Episode ${routeEpisodeNumber}`
-              : ''}
-        </CardTitle>
-        <CardDescription>
-          {selectedLocalFile
-            ? 'Playing from your local library'
-            : 'Playing from source provider embed'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <section className="space-y-4">
+      <div className="overflow-hidden rounded-xl bg-black shadow-sm">
+        <div className="mx-auto aspect-video w-full max-w-[min(100%,calc((100svh-12rem)*1.7778))] bg-black">
+          {selectedLocalFile ? (
+            <ElysiumVideoPlayer
+              poster={
+                anime.bannerImage ??
+                anime.coverImage?.extraLarge ??
+                anime.coverImage?.large
+              }
+              src={getLocalMediaStreamUrl(selectedLocalFile.id)}
+              onEnded={(event) => saveLocalProgress(event, true, true)}
+              onLoadedMetadata={restoreLocalProgress}
+              onPause={(event) => saveLocalProgress(event, false, true)}
+              onTimeUpdate={(event) => saveLocalProgress(event)}
+            />
+          ) : selectedStream ? (
+            <iframe
+              allow="fullscreen; encrypted-media; picture-in-picture"
+              allowFullScreen
+              className="h-full w-full border-0"
+              referrerPolicy="no-referrer-when-downgrade"
+              src={selectedStream.embedUrl}
+              title={`${anime.displayTitle} ${selectedStream.providerLabel}`}
+            />
+          ) : streamingOptionsLoading ? (
+            <div className="flex h-full w-full items-center justify-center bg-muted/20">
+              <Skeleton className="h-full w-full rounded-none bg-muted/20" />
+            </div>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+              No streaming embeds found for this episode yet.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <h1 className="min-w-0 text-xl font-semibold leading-tight md:text-2xl">
+            {watchTitle}
+          </h1>
+          <EpisodeDrawerButton
+            currentEpisode={episode}
+            episodes={episodeDrawerItems}
+            loading={episodesLoading}
+            routeEpisodeNumber={routeEpisodeNumber}
+            onEpisodeSelect={onEpisodeSelect}
+          />
+        </div>
+
         {selectedLocalFile ? (
           <>
-            <div className="aspect-video overflow-hidden rounded-md bg-black">
-              <ElysiumVideoPlayer
-                poster={
-                  anime.bannerImage ??
-                  anime.coverImage?.extraLarge ??
-                  anime.coverImage?.large
-                }
-                src={getLocalMediaStreamUrl(selectedLocalFile.id)}
-                onEnded={(event) => saveLocalProgress(event, true, true)}
-                onLoadedMetadata={restoreLocalProgress}
-                onPause={(event) => saveLocalProgress(event, false, true)}
-                onTimeUpdate={(event) => saveLocalProgress(event)}
-              />
-            </div>
             {playbackProgressQuery.data &&
             !playbackProgressQuery.data.completed ? (
               <div className="space-y-1">
@@ -1637,16 +1643,6 @@ function EpisodeWatchPanel({
           </>
         ) : selectedStream ? (
           <>
-            <div className="aspect-video overflow-hidden rounded-md bg-black">
-              <iframe
-                allow="fullscreen; encrypted-media; picture-in-picture"
-                allowFullScreen
-                className="h-full w-full border-0"
-                referrerPolicy="no-referrer-when-downgrade"
-                src={selectedStream.embedUrl}
-                title={`${anime.displayTitle} ${selectedStream.providerLabel}`}
-              />
-            </div>
             <div className="flex flex-wrap gap-2">
               {playableStreams.map((option, index) => (
                 <Button
@@ -1673,27 +1669,349 @@ function EpisodeWatchPanel({
               </div>
             ) : null}
           </>
-        ) : streamingOptionsLoading ? (
-          <ResultSkeleton />
-        ) : (
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function EpisodeDrawerButton({
+  currentEpisode,
+  episodes,
+  loading,
+  routeEpisodeNumber,
+  onEpisodeSelect,
+}: {
+  currentEpisode: EpisodeSummary | undefined;
+  episodes: EpisodeSummary[];
+  loading: boolean;
+  routeEpisodeNumber?: string;
+  onEpisodeSelect: (episode: EpisodeSummary) => void;
+}) {
+  return (
+    <Drawer direction="left">
+      <DrawerTrigger asChild>
+        <Button className="w-full sm:w-auto" type="button" variant="secondary">
+          <Clapperboard />
+          Episodes
+        </Button>
+      </DrawerTrigger>
+      <DrawerContent className="h-full sm:max-w-md">
+        <DrawerHeader>
+          <DrawerTitle>Episodes</DrawerTitle>
+          <DrawerDescription>
+            Select another episode from this anime.
+          </DrawerDescription>
+        </DrawerHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+          {loading ? <ResultSkeleton compact /> : null}
+          {!loading && episodes.length ? (
+            <div className="space-y-2">
+              {episodes.map((episode) => {
+                const selected = isSameEpisode(
+                  episode,
+                  currentEpisode,
+                  routeEpisodeNumber,
+                );
+                const title = getEpisodeSubtitle(episode);
+
+                return (
+                  <DrawerClose asChild key={episode.url}>
+                    <button
+                      className={cn(
+                        'flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-3 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        selected && 'border-primary bg-primary/10 text-primary',
+                      )}
+                      type="button"
+                      onClick={() => onEpisodeSelect(episode)}
+                    >
+                      <span className="min-w-0">
+                        <span className="block font-medium">
+                          {formatEpisodeTitle(episode)}
+                        </span>
+                        {title ? (
+                          <span className="mt-1 block truncate text-xs text-muted-foreground">
+                            {title}
+                          </span>
+                        ) : null}
+                      </span>
+                      {selected ? <Badge variant="secondary">Current</Badge> : null}
+                    </button>
+                  </DrawerClose>
+                );
+              })}
+            </div>
+          ) : null}
+          {!loading && !episodes.length ? (
+            <p className="text-sm text-muted-foreground">No episodes found yet.</p>
+          ) : null}
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
+function DownloadOptionsStepper({
+  downloadOptions,
+  downloadOptionsError,
+  downloadOptionsLoading,
+  downloadJobByUrl,
+  mutating,
+  retryError,
+  startError,
+  onDownload,
+}: {
+  downloadOptions: DownloadOption[];
+  downloadOptionsError: Error | null;
+  downloadOptionsLoading: boolean;
+  downloadJobByUrl: Map<string, DownloadJob>;
+  mutating: boolean;
+  retryError: Error | null;
+  startError: Error | null;
+  onDownload: (option: DownloadOption, job?: DownloadJob) => void;
+}) {
+  const [selectedQuality, setSelectedQuality] = useState<string | null>(null);
+  const [selectedProviderUrl, setSelectedProviderUrl] = useState<string | null>(
+    null,
+  );
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const resetTimerRef = useRef<number | undefined>(undefined);
+  const qualityGroups = useMemo(
+    () => getDownloadQualityGroups(downloadOptions),
+    [downloadOptions],
+  );
+  const selectedGroup =
+    qualityGroups.find((group) => group.quality === selectedQuality) ?? null;
+  const selectedOption =
+    selectedGroup?.options.find(
+      (option) => option.providerUrl === selectedProviderUrl,
+    ) ?? null;
+  const selectedJob = selectedOption
+    ? downloadJobByUrl.get(selectedOption.providerUrl)
+    : undefined;
+  const selectedSupport = selectedOption
+    ? getDownloadSupport(selectedOption)
+    : undefined;
+  const selectedActive = selectedJob
+    ? isActiveDownloadStatus(selectedJob.status)
+    : false;
+  const selectedCompleted = selectedJob?.status === 'completed';
+
+  useEffect(
+    () => () => {
+      if (resetTimerRef.current) {
+        window.clearTimeout(resetTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (
+      selectedQuality &&
+      !qualityGroups.some((group) => group.quality === selectedQuality)
+    ) {
+      setSelectedQuality(null);
+      setSelectedProviderUrl(null);
+      setSuccessMessage(null);
+    }
+  }, [qualityGroups, selectedQuality]);
+
+  function handleQualitySelect(quality: string) {
+    setSuccessMessage(null);
+    setSelectedProviderUrl(null);
+    setSelectedQuality((current) => (current === quality ? null : quality));
+  }
+
+  function handleConfirmDownload() {
+    if (!selectedOption || !selectedSupport) {
+      return;
+    }
+
+    if (
+      !selectedSupport.supported ||
+      selectedActive ||
+      selectedCompleted ||
+      mutating
+    ) {
+      return;
+    }
+
+    onDownload(selectedOption, selectedJob);
+    setSuccessMessage(
+      `${formatHostProvider(selectedOption.hostProvider)} ${selectedOption.qualityLabel} request sent.`,
+    );
+
+    if (resetTimerRef.current) {
+      window.clearTimeout(resetTimerRef.current);
+    }
+
+    resetTimerRef.current = window.setTimeout(() => {
+      setSelectedQuality(null);
+      setSelectedProviderUrl(null);
+      setSuccessMessage(null);
+      resetTimerRef.current = undefined;
+    }, 900);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Download locally</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {downloadOptionsLoading ? <ResultSkeleton compact /> : null}
+
+        {!downloadOptionsLoading && qualityGroups.length ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {qualityGroups.map((group) => {
+                const selected = group.quality === selectedQuality;
+
+                return (
+                  <Button
+                    className={cn(
+                      'transition-opacity',
+                      selectedQuality && !selected && 'opacity-45',
+                    )}
+                    key={group.quality}
+                    type="button"
+                    variant={selected ? 'default' : 'secondary'}
+                    onClick={() => handleQualitySelect(group.quality)}
+                  >
+                    {group.label}
+                  </Button>
+                );
+              })}
+            </div>
+
+            {selectedGroup ? (
+              <div className="space-y-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {selectedGroup.options.map((option) => {
+                    const job = downloadJobByUrl.get(option.providerUrl);
+                    const support = getDownloadSupport(option);
+                    const selected = option.providerUrl === selectedProviderUrl;
+
+                    return (
+                      <button
+                        className={cn(
+                          'flex min-h-14 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-opacity hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                          selected && 'border-primary bg-primary/10 text-primary',
+                          selectedProviderUrl && !selected && 'opacity-45',
+                        )}
+                        key={`${option.quality}-${option.hostProvider}-${option.providerUrl}`}
+                        type="button"
+                        onClick={() => {
+                          setSuccessMessage(null);
+                          setSelectedProviderUrl((current) =>
+                            current === option.providerUrl ? null : option.providerUrl,
+                          );
+                        }}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <ProviderFavicon option={option} />
+                          <span className="truncate font-medium">
+                            {formatHostProvider(option.hostProvider)}
+                          </span>
+                        </span>
+                        {job ? (
+                          <JobStatusBadge job={job} />
+                        ) : (
+                          <Badge variant={support.supported ? 'secondary' : 'outline'}>
+                            {support.label}
+                          </Badge>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selectedOption && selectedSupport ? (
+                  <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-sm font-medium">
+                        {selectedOption.qualityLabel} from{' '}
+                        {formatHostProvider(selectedOption.hostProvider)}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {selectedOption.providerUrl}
+                      </p>
+                    </div>
+                    <Button
+                      disabled={
+                        !selectedSupport.supported ||
+                        selectedActive ||
+                        selectedCompleted ||
+                        mutating
+                      }
+                      type="button"
+                      variant={selectedCompleted ? 'outline' : 'default'}
+                      onClick={handleConfirmDownload}
+                    >
+                      <Download />
+                      {getLocalDownloadButtonLabel(
+                        selectedJob,
+                        selectedSupport.supported,
+                      )}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {successMessage ? (
+              <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+                {successMessage}
+              </div>
+            ) : null}
+          </>
+        ) : null}
+
+        {!downloadOptionsLoading && !qualityGroups.length ? (
           <p className="text-sm text-muted-foreground">
-            No streaming embeds found for this episode yet.
+            No download options found for this episode yet.
           </p>
-        )}
+        ) : null}
+
+        {downloadOptionsError ? <ErrorText error={downloadOptionsError} /> : null}
+        {startError ? <ErrorText error={startError} /> : null}
+        {retryError ? <ErrorText error={retryError} /> : null}
       </CardContent>
     </Card>
   );
 }
 
+function ProviderFavicon({ option }: { option: DownloadOption }) {
+  const faviconUrl = getProviderFaviconUrl(option.providerUrl);
+
+  return (
+    <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-muted text-xs font-semibold uppercase text-muted-foreground">
+      {faviconUrl ? (
+        <img
+          alt=""
+          className="size-full object-cover"
+          src={faviconUrl}
+          onError={hideBrokenImage}
+        />
+      ) : (
+        formatHostProvider(option.hostProvider).charAt(0)
+      )}
+    </span>
+  );
+}
+
 function ElysiumSidebar({
   activeItem,
+  overlay = false,
   onNavigate,
 }: {
   activeItem: SidebarItemTitle;
+  overlay?: boolean;
   onNavigate: (path: SidebarRoutePath) => void;
 }) {
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible={overlay ? 'offcanvas' : 'icon'} overlay={overlay}>
       <SidebarHeader className="px-3 py-4">
         <div className="flex h-9 items-center gap-2 rounded-md px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
           <button
@@ -3101,7 +3419,7 @@ function formatHostProvider(provider: string) {
     case 'workupload':
       return 'Workupload';
     default:
-      return formatToken(provider);
+      return formatToken(provider) ?? provider;
   }
 }
 
@@ -3240,6 +3558,123 @@ function formatEpisodeTitle(episode: EpisodeSummary) {
     normalizeEpisodeNumber(episode.number) ?? normalizeEpisodeNumber(episode.title);
 
   return episodeNumber ? `Episode ${episodeNumber}` : episode.title;
+}
+
+function getEpisodeSubtitle(episode: EpisodeSummary) {
+  const title = episode.title?.trim();
+
+  if (!title || /[\u0600-\u06FF]/.test(title)) {
+    return undefined;
+  }
+
+  const titleEpisodeNumber = normalizeEpisodeNumber(title);
+  const episodeNumber = normalizeEpisodeNumber(episode.number);
+
+  if (titleEpisodeNumber && episodeNumber && titleEpisodeNumber === episodeNumber) {
+    return undefined;
+  }
+
+  return title;
+}
+
+function getEpisodeDrawerItems(
+  episodes: EpisodeSummary[],
+  currentEpisode: EpisodeSummary | undefined,
+  routeEpisodeNumber?: string,
+) {
+  const currentIndex = episodes.findIndex((episode) =>
+    isSameEpisode(episode, currentEpisode, routeEpisodeNumber),
+  );
+
+  if (currentIndex <= 0) {
+    return episodes;
+  }
+
+  return [
+    ...episodes.slice(currentIndex),
+    ...episodes.slice(0, currentIndex),
+  ];
+}
+
+function isSameEpisode(
+  episode: EpisodeSummary,
+  currentEpisode: EpisodeSummary | undefined,
+  routeEpisodeNumber?: string,
+) {
+  if (currentEpisode?.url && episode.url === currentEpisode.url) {
+    return true;
+  }
+
+  const episodeNumber =
+    normalizeEpisodeNumber(episode.number) ?? normalizeEpisodeNumber(episode.title);
+  const currentEpisodeNumber =
+    normalizeEpisodeNumber(currentEpisode?.number) ??
+    normalizeEpisodeNumber(currentEpisode?.title) ??
+    normalizeEpisodeNumber(routeEpisodeNumber);
+
+  return Boolean(
+    episodeNumber &&
+      currentEpisodeNumber &&
+      episodeNumber === currentEpisodeNumber,
+  );
+}
+
+function getDownloadQualityGroups(downloadOptions: DownloadOption[]) {
+  const groups = new Map<DownloadOption['quality'], DownloadQualityGroup>();
+
+  for (const option of downloadOptions) {
+    const group = groups.get(option.quality);
+
+    if (group) {
+      group.options.push(option);
+      continue;
+    }
+
+    groups.set(option.quality, {
+      label: option.quality,
+      options: [option],
+      quality: option.quality,
+    });
+  }
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      options: group.options.toSorted(
+        (first, second) =>
+          formatHostProvider(first.hostProvider).localeCompare(
+            formatHostProvider(second.hostProvider),
+          ) || first.providerUrl.localeCompare(second.providerUrl),
+      ),
+    }))
+    .toSorted(
+      (first, second) =>
+        getQualitySortRank(first.quality) - getQualitySortRank(second.quality) ||
+        first.label.localeCompare(second.label),
+    );
+}
+
+function getProviderFaviconUrl(providerUrl: string) {
+  try {
+    const hostname = new URL(providerUrl).hostname;
+
+    if (!hostname) {
+      return undefined;
+    }
+
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=32`;
+  } catch {
+    return undefined;
+  }
+}
+
+function getLocalDownloadButtonLabel(
+  job: DownloadJob | undefined,
+  supported: boolean,
+) {
+  const label = getDownloadButtonLabel(job, supported);
+
+  return label === 'Download' ? 'Download locally' : label;
 }
 
 function getLocalFilesForEpisode({
