@@ -44,6 +44,14 @@ chore: scaffold Bun Turborepo workspace
 - configure Turbo and Vercel for Bun
 ```
 
+Private project knowledge behavior:
+
+- After every meaningful architecture, feature-progression, feature-set, general-logic, planning, or high-level codebase direction change, update the ignored `/docs` folder with the durable context.
+- Put the note in an existing doc when the topic already has a home; create a new doc only when the context does not fit cleanly anywhere else.
+- Do not document small implementation-only changes such as a minor UI tweak, a narrow API adjustment, a simple bug fix, or other low-context code edits unless they change how future agents should understand the project.
+- If the change is important enough to serve as a context anchor for new agent sessions, also update `AGENTS.md` with the short durable rule or pointer.
+- Keep `/docs` private and ignored. Do not force-add it unless the user explicitly asks.
+
 Package manager and runtime:
 
 - Use Bun for all package management and script execution.
@@ -185,6 +193,7 @@ Private docs:
 - `/docs` exists for private, sensitive project knowledge and generated import reports.
 - `/docs` is intentionally gitignored; do not force-add it unless the user explicitly asks.
 - Future agents should read `/docs/README.md` when present before changing provider, downloader, database, media-library, or homeserver setup.
+- Meaningful high-level project decisions and feature-direction changes should be saved into `/docs`, and major durable rules should also be reflected in this `AGENTS.md`.
 
 Linting:
 
