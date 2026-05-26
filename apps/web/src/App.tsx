@@ -156,6 +156,7 @@ const EMPTY_PLAYBACK_PROGRESS: PlaybackProgress[] = [];
 const ELYSIUM_VIDEO_PLAYER = createPlayer({ features: videoFeatures });
 const SEEK_FEEDBACK_SECONDS = 10;
 const SEEK_FEEDBACK_TIMEOUT_MS = 650;
+const PLAYBACK_FEEDBACK_TIMEOUT_MS = 620;
 const PROFILE_PHOTO_SIZE = 256;
 const PROFILE_PHOTO_QUALITY = 0.82;
 const MAX_PROFILE_PHOTO_SOURCE_BYTES = 10 * 1024 * 1024;
@@ -1325,6 +1326,11 @@ type SeekFeedback = {
   seconds: number;
 };
 
+type PlaybackFeedback = {
+  action: 'pause' | 'play';
+  id: number;
+};
+
 function ElysiumVideoPlayer({
   poster,
   src,
@@ -1341,12 +1347,19 @@ function ElysiumVideoPlayer({
   onTimeUpdate?: VideoElementEventHandler;
 }) {
   const [seekFeedback, setSeekFeedback] = useState<SeekFeedback | null>(null);
+  const [playbackFeedback, setPlaybackFeedback] =
+    useState<PlaybackFeedback | null>(null);
   const seekFeedbackTimeoutRef = useRef<number | undefined>(undefined);
+  const playbackFeedbackTimeoutRef = useRef<number | undefined>(undefined);
 
   useEffect(
     () => () => {
       if (seekFeedbackTimeoutRef.current) {
         window.clearTimeout(seekFeedbackTimeoutRef.current);
+      }
+
+      if (playbackFeedbackTimeoutRef.current) {
+        window.clearTimeout(playbackFeedbackTimeoutRef.current);
       }
     },
     [],
@@ -1368,6 +1381,21 @@ function ElysiumVideoPlayer({
     }, SEEK_FEEDBACK_TIMEOUT_MS);
   }
 
+  function showPlaybackFeedback(action: PlaybackFeedback['action']) {
+    if (playbackFeedbackTimeoutRef.current) {
+      window.clearTimeout(playbackFeedbackTimeoutRef.current);
+    }
+
+    setPlaybackFeedback((current) => ({
+      action,
+      id: (current?.id ?? 0) + 1,
+    }));
+    playbackFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setPlaybackFeedback(null);
+      playbackFeedbackTimeoutRef.current = undefined;
+    }, PLAYBACK_FEEDBACK_TIMEOUT_MS);
+  }
+
   function handleClickCapture(event: MouseEvent<HTMLDivElement>) {
     const target = event.target;
 
@@ -1385,9 +1413,21 @@ function ElysiumVideoPlayer({
     }
   }
 
+  function handlePause(event: SyntheticEvent<HTMLVideoElement>) {
+    onPause?.(event);
+
+    if (!event.currentTarget.ended) {
+      showPlaybackFeedback('pause');
+    }
+  }
+
+  function handlePlay() {
+    showPlaybackFeedback('play');
+  }
+
   return (
     <ELYSIUM_VIDEO_PLAYER.Provider key={src}>
-      <div className="h-full w-full" onClickCapture={handleClickCapture}>
+      <div className="relative h-full w-full" onClickCapture={handleClickCapture}>
         <VideoSkin
           className="h-full w-full"
           poster={poster}
@@ -1405,13 +1445,50 @@ function ElysiumVideoPlayer({
             src={src}
             onEnded={onEnded}
             onLoadedMetadata={onLoadedMetadata}
-            onPause={onPause}
+            onPause={handlePause}
+            onPlay={handlePlay}
             onTimeUpdate={onTimeUpdate}
           />
+          {playbackFeedback ? (
+            <ElysiumPlaybackFeedback feedback={playbackFeedback} />
+          ) : null}
           {seekFeedback ? <ElysiumSeekFeedback feedback={seekFeedback} /> : null}
         </VideoSkin>
       </div>
     </ELYSIUM_VIDEO_PLAYER.Provider>
+  );
+}
+
+function ElysiumPlaybackFeedback({
+  feedback,
+}: {
+  feedback: PlaybackFeedback;
+}) {
+  return (
+    <div className="elysium-playback-feedback" key={feedback.id}>
+      <div className="elysium-playback-feedback__bubble">
+        {feedback.action === 'pause' ? (
+          <svg
+            aria-hidden="true"
+            className="elysium-playback-feedback__icon"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <rect height="15" rx="2.4" width="5.5" x="5.25" y="4.5" />
+            <rect height="15" rx="2.4" width="5.5" x="13.25" y="4.5" />
+          </svg>
+        ) : (
+          <svg
+            aria-hidden="true"
+            className="elysium-playback-feedback__icon"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path d="M7 5.95c0-1.54 1.68-2.5 3.01-1.72l10.28 6.05a2 2 0 0 1 0 3.44L10.01 19.77C8.68 20.55 7 19.59 7 18.05z" />
+          </svg>
+        )}
+      </div>
+    </div>
   );
 }
 
