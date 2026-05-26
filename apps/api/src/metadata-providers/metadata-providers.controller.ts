@@ -102,7 +102,7 @@ export class MetadataProvidersController {
       throw new BadRequestException('Invalid anime id');
     }
 
-    return this.metadataProviders.getAdapter(providerId).getAnimeDetails(id);
+    return this.metadataProviders.getAnimeDetails(providerId, id);
   }
 }
 

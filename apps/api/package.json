@@ -23,6 +23,7 @@
     "db:stop": "bash scripts/db-stop.sh",
     "downloads:finalize": "bun src/cli/finalize-downloads.ts",
     "library:apply-renames": "bun src/cli/apply-media-renames.ts",
+    "library:cache-metadata": "bun src/cli/cache-media-metadata.ts",
     "library:match-anilist": "bun src/cli/match-local-anime.ts",
     "library:import-renamed": "bun src/cli/import-renamed-media-library.ts",
     "library:plan-renames": "bun src/cli/plan-media-renames.ts",

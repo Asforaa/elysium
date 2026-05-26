@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { DownloadedAnime, LocalMediaFile } from '@elysium/shared';
+import type {
+  AnimeMetadataDetails,
+  DownloadedAnime,
+  LocalMediaFile,
+  MetadataProviderId,
+} from '@elysium/shared';
 import type { QueryResultRow } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
@@ -102,11 +107,20 @@ interface MediaEntityRow extends QueryResultRow {
   elysium_id: string | null;
   id: string;
   media_kind: string;
+  metadata: Record<string, unknown>;
+  metadata_cached_at: Date | string | null;
+  metadata_file_path: string | null;
   metadata_id: number | null;
   metadata_provider: string | null;
   source_search_title: string | null;
   title_romaji: string | null;
   updated_at: Date | string;
+}
+
+interface MediaEntityCacheTargetRow extends QueryResultRow {
+  id: string;
+  metadata_id: number;
+  metadata_provider: MetadataProviderId;
 }
 
 interface MediaImportRunRow extends QueryResultRow {
@@ -122,6 +136,7 @@ interface MediaLibraryFileRow extends QueryResultRow {
   elysium_id: string | null;
   episode_number: string | null;
   episode_title: string | null;
+  entity_metadata: Record<string, unknown> | null;
   file_id: string;
   filename: string;
   host_provider: string | null;
@@ -521,7 +536,18 @@ export class MediaLibraryRepository {
   }
 
   async listImportedDownloadedAnime(): Promise<DownloadedAnime[]> {
-    return groupFilesByMedia(await this.listImportedLocalMediaFiles());
+    const result = await this.database.query<MediaLibraryFileRow>(
+      `${LOCAL_FILE_SELECT}
+        where files.file_kind = 'video'
+          and files.status = 'imported'
+          and entities.media_kind = 'anime'
+          and entities.metadata_provider = 'anilist'
+          and entities.metadata_id is not null
+        order by coalesce(entities.display_title, files.filename), files.sort_order nulls last, files.filename
+      `,
+    );
+
+    return groupFilesByMedia(result.rows.map(mapLocalMediaFile));
   }
 
   async findEntityByElysiumId(elysiumId: string) {
@@ -531,6 +557,84 @@ export class MediaLibraryRepository {
     );
 
     return result.rows[0];
+  }
+
+  async getCachedAnimeDetails(
+    provider: MetadataProviderId,
+    metadataId: number,
+  ) {
+    const result = await this.database.query<MediaEntityRow>(
+      `
+        select *
+        from media_entities
+        where metadata_provider = $1
+          and metadata_id = $2
+          and metadata_cached_at is not null
+        limit 1
+      `,
+      [provider, metadataId],
+    );
+    const row = result.rows[0];
+    const details = row?.metadata?.details;
+
+    return isObject(details)
+      ? (details as unknown as AnimeMetadataDetails)
+      : undefined;
+  }
+
+  async listMetadataCacheTargets({
+    missingOnly = true,
+    provider,
+  }: {
+    missingOnly?: boolean;
+    provider?: MetadataProviderId;
+  } = {}) {
+    const result = await this.database.query<MediaEntityCacheTargetRow>(
+      `
+        select id, metadata_provider, metadata_id
+        from media_entities
+        where metadata_provider is not null
+          and metadata_id is not null
+          and ($1::text is null or metadata_provider = $1)
+          and ($2::boolean is false or metadata_cached_at is null)
+        order by metadata_cached_at asc nulls first, display_title
+      `,
+      [provider ?? null, missingOnly],
+    );
+
+    return result.rows;
+  }
+
+  async upsertCachedAnimeDetails({
+    details,
+    filePath,
+    provider,
+  }: {
+    details: AnimeMetadataDetails;
+    filePath: string;
+    provider: MetadataProviderId;
+  }) {
+    const mediaEntityId = await this.upsertCachedEntity({ details, filePath, provider });
+
+    await this.upsertExternalId({
+      mediaEntityId,
+      provider,
+      providerId: String(details.id),
+      providerPayload: { cachedAt: new Date().toISOString() },
+      providerUrl: details.siteUrl,
+    });
+
+    if (details.idMal) {
+      await this.upsertExternalId({
+        mediaEntityId,
+        provider: 'myanimelist',
+        providerId: String(details.idMal),
+        providerPayload: { sourceProvider: provider },
+        providerUrl: `https://myanimelist.net/anime/${details.idMal}`,
+      });
+    }
+
+    return mediaEntityId;
   }
 
   private async findExistingEntity(input: MediaEntityInput) {
@@ -558,6 +662,91 @@ export class MediaLibraryRepository {
 
     return result.rows[0];
   }
+
+  private async upsertCachedEntity({
+    details,
+    filePath,
+    provider,
+  }: {
+    details: AnimeMetadataDetails;
+    filePath: string;
+    provider: MetadataProviderId;
+  }) {
+    const result = await this.database.query<MediaEntityRow>(
+      `
+        insert into media_entities (
+          id,
+          metadata_provider,
+          metadata_id,
+          media_kind,
+          display_title,
+          canonical_title,
+          match_status,
+          title_romaji,
+          title_english,
+          title_native,
+          format,
+          episode_count,
+          source_search_title,
+          cover_image_url,
+          banner_image_url,
+          metadata,
+          metadata_file_path,
+          metadata_cached_at
+        )
+        values (
+          $1, $2, $3, 'anime', $4,
+          $5, 'matched', $6, $7, $8,
+          $9, $10, $11, $12, $13,
+          $14, $15, now()
+        )
+        on conflict (metadata_provider, metadata_id) do update set
+          media_kind = excluded.media_kind,
+          display_title = excluded.display_title,
+          canonical_title = excluded.canonical_title,
+          match_status = excluded.match_status,
+          title_romaji = excluded.title_romaji,
+          title_english = excluded.title_english,
+          title_native = excluded.title_native,
+          format = excluded.format,
+          episode_count = excluded.episode_count,
+          source_search_title = excluded.source_search_title,
+          cover_image_url = excluded.cover_image_url,
+          banner_image_url = excluded.banner_image_url,
+          metadata = excluded.metadata,
+          metadata_file_path = excluded.metadata_file_path,
+          metadata_cached_at = excluded.metadata_cached_at,
+          updated_at = now()
+        returning *
+      `,
+      [
+        randomUUID(),
+        provider,
+        details.id,
+        details.displayTitle,
+        details.displayTitle,
+        details.title.romaji ?? details.displayTitle,
+        details.title.english ?? null,
+        details.title.native ?? null,
+        details.format ?? null,
+        details.episodes ?? null,
+        details.sourceSearchTitle,
+        details.coverImage?.extraLarge ??
+          details.coverImage?.large ??
+          details.coverImage?.medium ??
+          null,
+        details.bannerImage ?? null,
+        toJson({
+          details,
+          cachedAt: new Date().toISOString(),
+          provider,
+        }),
+        filePath,
+      ],
+    );
+
+    return result.rows[0].id;
+  }
 }
 
 const LOCAL_FILE_SELECT = `
@@ -582,6 +771,7 @@ const LOCAL_FILE_SELECT = `
     entities.source_search_title,
     entities.cover_image_url,
     entities.banner_image_url,
+    entities.metadata as entity_metadata,
     entities.elysium_id
   from media_library_files files
   left join media_entities entities on entities.id = files.media_entity_id
@@ -599,8 +789,17 @@ function mapLocalMediaFile(row: MediaLibraryFileRow): LocalMediaFile {
     updatedAt: toIsoString(row.updated_at),
   };
 
-  if (row.media_context) {
-    file.mediaContext = row.media_context;
+  const cachedDetails = row.entity_metadata?.details;
+  const mediaContext =
+    row.media_context || isObject(cachedDetails)
+      ? {
+          ...(row.media_context ?? {}),
+          ...(isObject(cachedDetails) ? { metadataDetails: cachedDetails } : {}),
+        }
+      : undefined;
+
+  if (mediaContext) {
+    file.mediaContext = mediaContext as unknown as LocalMediaFile['mediaContext'];
   }
 
   if (row.metadata_provider) {
@@ -655,6 +854,7 @@ export function groupFilesByMedia(files: LocalMediaFile[]) {
       file.metadataProvider && file.metadataId
         ? `${file.metadataProvider}:${file.metadataId}`
         : importedContext?.elysiumId ?? file.displayTitle ?? file.id;
+    const cachedDetails = getCachedDetails(file.mediaContext);
     const existing = animeByKey.get(key);
 
     if (existing) {
@@ -669,13 +869,20 @@ export function groupFilesByMedia(files: LocalMediaFile[]) {
       metadataProvider: file.metadataProvider,
       metadataId: file.metadataId,
       displayTitle:
+        cachedDetails?.displayTitle ??
         file.displayTitle ??
         file.mediaContext?.displayTitle?.toString() ??
         file.filename,
       sourceSearchTitle:
-        file.sourceSearchTitle ?? file.mediaContext?.sourceSearchTitle?.toString(),
-      coverImageUrl: file.coverImageUrl,
-      bannerImageUrl: file.bannerImageUrl,
+        cachedDetails?.sourceSearchTitle ??
+        file.sourceSearchTitle ??
+        file.mediaContext?.sourceSearchTitle?.toString(),
+      coverImageUrl:
+        cachedDetails?.coverImage?.extraLarge ??
+        cachedDetails?.coverImage?.large ??
+        cachedDetails?.coverImage?.medium ??
+        file.coverImageUrl,
+      bannerImageUrl: cachedDetails?.bannerImage ?? file.bannerImageUrl,
       files: [file],
       updatedAt: file.updatedAt,
     });
@@ -684,6 +891,15 @@ export function groupFilesByMedia(files: LocalMediaFile[]) {
   return Array.from(animeByKey.values()).sort((first, second) =>
     second.updatedAt.localeCompare(first.updatedAt),
   );
+}
+
+function getCachedDetails(mediaContext: LocalMediaFile['mediaContext']) {
+  const details = (mediaContext as Record<string, unknown> | undefined)
+    ?.metadataDetails;
+
+  return isObject(details)
+    ? (details as unknown as AnimeMetadataDetails)
+    : undefined;
 }
 
 function toNumber(value: string | number | null | undefined) {
@@ -702,4 +918,8 @@ function toIsoString(value: Date | string) {
 
 function toJson(value: unknown) {
   return value === null ? null : JSON.stringify(value);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }

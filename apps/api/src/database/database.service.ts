@@ -475,4 +475,18 @@ const DATABASE_MIGRATIONS = [
       `,
     ],
   },
+  {
+    id: '007_media_entity_metadata_cache',
+    statements: [
+      `
+        alter table media_entities
+          add column if not exists metadata_file_path text,
+          add column if not exists metadata_cached_at timestamptz
+      `,
+      `
+        create index if not exists media_entities_metadata_cache_idx
+          on media_entities (metadata_provider, metadata_id, metadata_cached_at)
+      `,
+    ],
+  },
 ];

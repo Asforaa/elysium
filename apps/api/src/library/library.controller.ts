@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   Controller,
   Delete,
   Get,
   Header,
   NotFoundException,
   Param,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
@@ -24,7 +26,14 @@ export class LibraryController {
   }
 
   @Get('anime')
-  listAnime() {
+  listAnime(@Query('page') page?: string, @Query('perPage') perPage?: string) {
+    if (page || perPage) {
+      return this.library.listAnimePage({
+        page: normalizeOptionalPositiveInteger(page, 'page'),
+        perPage: normalizeOptionalPositiveInteger(perPage, 'perPage'),
+      });
+    }
+
     return this.library.listAnime();
   }
 
@@ -125,4 +134,21 @@ function contentTypeFromFilename(filename: string) {
     default:
       return 'application/octet-stream';
   }
+}
+
+function normalizeOptionalPositiveInteger(
+  value: string | undefined,
+  label: string,
+) {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = Number(value);
+
+  if (Number.isInteger(normalized) && normalized > 0) {
+    return normalized;
+  }
+
+  throw new BadRequestException(`Invalid ${label}: ${value}`);
 }

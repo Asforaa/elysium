@@ -81,6 +81,7 @@ Frontend:
 - Use TanStack Router for frontend routes. Anime detail pages live at `/anime/$animeId/$slug`.
 - Episode playback pages live at `/anime/$animeId/$slug/episode/$episodeNumber`; do not introduce a generic `/watch` route.
 - Downloads live at `/downloads` and should show anime metadata objects with attached downloaded episodes, not only raw file rows.
+- `/downloads` is backed by paginated `/library/anime?page=&perPage=` data and should render the same kind of poster/entity cards used by search/home rails. Infinite scroll is preferred over exposing raw file rows.
 - Treat the AniList numeric ID as the route source of truth. The slug is only for readable URLs and should not be required for lookups.
 - Autocomplete selection and related-anime selection should navigate to the anime route, then let the route-driven page fetch AniList metadata and source-adapter matches.
 - Run `bun run --filter @elysium/web routes:generate` when route files change, and commit the generated `src/routeTree.gen.ts`.
@@ -102,7 +103,10 @@ Backend:
 - Download jobs are persisted in PostgreSQL by the backend `download-jobs` module.
 - Use `download_job_attempts` for retries and failure history. Retrying a failed/cancelled job should create a new attempt under the same job, not a random unrelated job.
 - Completed downloads should seed `local_media_files` so the local library can attach files to AniList/source/episode context.
-- Completed downloads should be grouped by anime through `/library/anime` and streamed through `/library/files/:id/stream` with HTTP range support.
+- Completed downloads and imported anime should be grouped by anime through `/library/anime` and streamed through `/library/files/:id/stream` with HTTP range support.
+- `/library/anime` should return only AniList-backed anime groups until movie/series metadata providers and routes exist. Do not mix unmatched movie/TV entities into the anime endpoint.
+- Starting any download with AniList context should cache the full AniList metadata payload locally in both PostgreSQL and filesystem metadata storage, even if only one episode is downloaded.
+- Imported/renamed anime library rows should also have AniList metadata cached locally so `/downloads` and anime detail routes can work from local state when provider access is unavailable.
 - Playback progress belongs in the backend `playback` module and should support both local file IDs and source episode identities for continue-watching features.
 - Use ReactPlayer for local downloaded files for now. Source-provider streaming hosts should be attached as iframe embeds from the provider adapter because they are already external player pages.
 - Use the local backend downloader for active download execution. It should try concurrent HTTP range downloads when supported, fall back to a normal stream when not, and keep Mega on its custom local `megajs` path.
@@ -127,6 +131,7 @@ Local database:
 - Current development uses the homeserver PostgreSQL instance over Tailscale.
 - The root `.env` and `apps/api/.env` are ignored and should contain the real `DATABASE_URL`.
 - `apps/api/.env` exists because `bun run --filter @elysium/api ...` runs from the API package directory and does not reliably load the root `.env`.
+- `apps/api/src/database/database.config.ts` also reads `.env` files from the current directory upward because the Nest dev server runs under Node and does not inherit Bun's automatic env loading in every launch path.
 - Current homeserver DB endpoint is Tailscale-bound at `100.67.83.68:55432`.
 - Current homeserver Postgres container is `elysium-postgres`.
 - Default fallback DB URL is `postgresql://asforaa@127.0.0.1:55432/elysium` on this machine.
@@ -186,6 +191,11 @@ Homeserver media:
   - It imports video files into `media_library_files`, entities into `media_entities`, provider IDs into `media_external_ids`, and source notes into `media_library_notes`.
   - It does not move, rename, delete, or rewrite media files.
   - `/library/files`, `/library/anime`, and `/library/files/:id/stream` should read imported `media_library_files` together with newly downloaded `local_media_files`.
+- Anime metadata cache CLI:
+  - `bun run --filter @elysium/api library:cache-metadata`
+  - It caches AniList metadata for known imported/downloaded anime entities into PostgreSQL and ignored local JSON files.
+  - Use `--include-cached` only when intentionally refreshing existing cached payloads.
+  - Keep the default delay to avoid AniList rate limits during large backfills.
 
 Portless:
 

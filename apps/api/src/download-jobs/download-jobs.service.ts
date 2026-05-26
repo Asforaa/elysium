@@ -15,6 +15,7 @@ import type {
 import { DownloadConnectionResolver } from '../download-engine/download-connection-resolver';
 import { DownloadFileFinalizer } from '../download-engine/download-file-finalizer';
 import { LocalDownloader } from '../download-engine/local-downloader';
+import { MediaMetadataCacheService } from '../media-library/media-metadata-cache.service';
 import { DownloadJobsRepository } from './download-jobs.repository';
 
 const DEFAULT_DOWNLOAD_DIR = resolve(process.cwd(), '../../.local/downloads');
@@ -48,7 +49,10 @@ export class DownloadJobsService implements OnModuleInit {
     Promise<DownloadJob | undefined>
   >();
 
-  constructor(private readonly repository: DownloadJobsRepository) {}
+  constructor(
+    private readonly repository: DownloadJobsRepository,
+    private readonly metadataCache: MediaMetadataCacheService,
+  ) {}
 
   async onModuleInit() {
     const interruptedJobs = await this.repository.markInterruptedJobsFailed();
@@ -59,6 +63,10 @@ export class DownloadJobsService implements OnModuleInit {
   }
 
   async createJob(request: CreateDownloadJobRequest): Promise<DownloadJob> {
+    await this.metadataCache
+      .cacheFromDownloadContext(request.mediaContext)
+      .catch(() => undefined);
+
     const job = await this.repository.createJob({
       id: randomUUID(),
       mediaContext: request.mediaContext,

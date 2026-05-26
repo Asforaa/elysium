@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Download, RotateCcw, Trash2, X } from "lucide-react";
 import type {
   AnimeMetadataSearchResult,
@@ -30,13 +31,42 @@ import {
 
 export function DownloadsPage({
   anime,
+  fetchingNextPage,
+  hasNextPage,
   loading,
   onAnimeSelect,
+  onLoadMore,
 }: {
   anime: DownloadedAnime[];
+  fetchingNextPage: boolean;
+  hasNextPage: boolean;
   loading: boolean;
   onAnimeSelect: (item: AnimeMetadataSearchResult) => void;
+  onLoadMore: () => void;
 }) {
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+
+    if (!target || fetchingNextPage || !hasNextPage) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: "480px 0px" },
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, [fetchingNextPage, hasNextPage, onLoadMore]);
+
   return (
     <section className="space-y-6 py-2">
       <div>
@@ -57,6 +87,8 @@ export function DownloadsPage({
           ))}
         </div>
       ) : null}
+      <div ref={loadMoreRef} aria-hidden="true" className="h-8" />
+      {fetchingNextPage ? <AnimeSearchSkeletonGrid compact /> : null}
       {!loading && !anime.length ? (
         <p className="text-sm text-muted-foreground">
           Completed downloads will appear here grouped by anime.

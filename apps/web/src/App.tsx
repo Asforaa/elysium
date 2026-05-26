@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import type {
@@ -380,6 +380,10 @@ function App({
     });
   }
 
+  const handleDownloadedAnimeLoadMore = useCallback(() => {
+    void downloadedAnimeQuery.fetchNextPage();
+  }, [downloadedAnimeQuery.fetchNextPage]);
+
   return (
     <SidebarProvider
       defaultOpen={!showingEpisodeRoute}
@@ -483,8 +487,11 @@ function App({
             {downloadsRoute ? (
               <DownloadsPage
                 anime={downloadedAnime}
+                fetchingNextPage={downloadedAnimeQuery.isFetchingNextPage}
+                hasNextPage={Boolean(downloadedAnimeQuery.hasNextPage)}
                 loading={downloadedAnimeQuery.isFetching}
                 onAnimeSelect={handleAnimeSelect}
+                onLoadMore={handleDownloadedAnimeLoadMore}
               />
             ) : null}
 

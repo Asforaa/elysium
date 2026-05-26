@@ -349,6 +349,14 @@ export interface DownloadedAnime {
   updatedAt: string;
 }
 
+export interface DownloadedAnimePage {
+  hasNextPage: boolean;
+  items: DownloadedAnime[];
+  page: number;
+  perPage: number;
+  total: number;
+}
+
 export interface PlaybackProgress {
   id: string;
   localMediaFileId?: string;

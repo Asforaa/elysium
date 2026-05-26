@@ -7,6 +7,7 @@ import type {
   AnimeMetadataSearchResult,
   AnimeMetadataSearchSort,
   DownloadedAnime,
+  DownloadedAnimePage,
   DownloadMediaContext,
   DownloadJob,
   DownloadOption,
@@ -179,6 +180,21 @@ export async function listLocalMediaFiles(): Promise<LocalMediaFile[]> {
 
 export async function listDownloadedAnime(): Promise<DownloadedAnime[]> {
   return getJson('/library/anime');
+}
+
+export async function listDownloadedAnimePage({
+  page = 1,
+  perPage = 24,
+}: {
+  page?: number;
+  perPage?: number;
+} = {}): Promise<DownloadedAnimePage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    perPage: String(perPage),
+  });
+
+  return getJson(`/library/anime?${params.toString()}`);
 }
 
 export async function deleteLocalMediaFile(id: string): Promise<DownloadJob> {

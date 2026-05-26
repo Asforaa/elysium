@@ -1,5 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import type { DownloadedAnime, LocalMediaFile } from '@elysium/shared';
+import type {
+  DownloadedAnime,
+  DownloadedAnimePage,
+  LocalMediaFile,
+} from '@elysium/shared';
 import { DownloadJobsRepository } from '../download-jobs/download-jobs.repository';
 import { DownloadJobsService } from '../download-jobs/download-jobs.service';
 import {
@@ -27,6 +31,28 @@ export class LibraryService {
       await this.mediaLibrary.listImportedDownloadedAnime(),
       await this.downloads.listDownloadedAnime(),
     );
+  }
+
+  async listAnimePage({
+    page = 1,
+    perPage = 24,
+  }: {
+    page?: number;
+    perPage?: number;
+  }): Promise<DownloadedAnimePage> {
+    const anime = await this.listAnime();
+    const normalizedPage = Math.max(1, Math.trunc(page));
+    const normalizedPerPage = Math.min(60, Math.max(1, Math.trunc(perPage)));
+    const startIndex = (normalizedPage - 1) * normalizedPerPage;
+    const items = anime.slice(startIndex, startIndex + normalizedPerPage);
+
+    return {
+      hasNextPage: startIndex + normalizedPerPage < anime.length,
+      items,
+      page: normalizedPage,
+      perPage: normalizedPerPage,
+      total: anime.length,
+    };
   }
 
   async getFile(id: string) {
