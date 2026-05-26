@@ -259,6 +259,11 @@ function App({
   const showingAnimeSearch = trimmedAnimeQuery.length > 0;
   const showingEpisodeRoute = Boolean(routeEpisodeNumber);
   const [sidebarOpen, setSidebarOpen] = useState(!showingEpisodeRoute);
+  const showingHomeRoute =
+    !downloadsRoute &&
+    !placeholderRoute &&
+    !showingAnimeSearch &&
+    !selectedAnimeId;
 
   useEffect(() => {
     setAnimeQuery(routeAnimeSearchQuery);
@@ -408,6 +413,13 @@ function App({
   });
   const continueWatching =
     continueWatchingQuery.data ?? EMPTY_PLAYBACK_PROGRESS;
+  const newPopularQuery = useQuery({
+    queryKey: ['metadata', 'anilist', 'home', 'new-popular'],
+    queryFn: () => searchAnimeMetadata('', 'popularity'),
+    enabled: showingHomeRoute,
+    staleTime: 5 * 60_000,
+  });
+  const newPopularAnime = newPopularQuery.data ?? EMPTY_ANIME_RESULTS;
   const selectedEpisodeFiles = useMemo(
     () =>
       getLocalFilesForEpisode({
@@ -813,11 +825,15 @@ function App({
             {!downloadsRoute &&
             !placeholderRoute &&
             !showingAnimeSearch &&
-            !animeDetails ? (
-              <ContinueWatchingPanel
+            showingHomeRoute ? (
+              <HomePage
+                continueWatching={continueWatching}
                 files={localMediaFiles}
-                items={continueWatching}
-                loading={continueWatchingQuery.isFetching}
+                newPopular={newPopularAnime}
+                newPopularError={newPopularQuery.error}
+                newPopularLoading={newPopularQuery.isFetching}
+                continueWatchingLoading={continueWatchingQuery.isFetching}
+                onAnimeSelect={handleAnimeSelect}
                 onResume={handleContinueWatchingSelect}
               />
             ) : null}
@@ -3025,15 +3041,23 @@ function EpisodeButton({
   );
 }
 
-function ContinueWatchingPanel({
+function HomePage({
+  continueWatching,
   files,
-  items,
-  loading,
+  newPopular,
+  newPopularError,
+  newPopularLoading,
+  continueWatchingLoading,
+  onAnimeSelect,
   onResume,
 }: {
+  continueWatching: PlaybackProgress[];
   files: LocalMediaFile[];
-  items: PlaybackProgress[];
-  loading: boolean;
+  newPopular: AnimeMetadataSearchResult[];
+  newPopularError: Error | null;
+  newPopularLoading: boolean;
+  continueWatchingLoading: boolean;
+  onAnimeSelect: (item: AnimeMetadataSearchResult) => void;
   onResume: (progress: PlaybackProgress) => void;
 }) {
   const fileById = useMemo(() => {
@@ -3046,77 +3070,204 @@ function ContinueWatchingPanel({
     return map;
   }, [files]);
 
-  const visibleItems = items.filter((item) => !item.completed).slice(0, 8);
+  const visibleContinueWatching = continueWatching
+    .filter((item) => !item.completed)
+    .slice(0, 10);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Continue Watching</CardTitle>
-        <CardDescription>
-          {loading ? 'Refreshing playback progress' : 'Partially watched local episodes'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loading && !visibleItems.length ? <ResultSkeleton compact /> : null}
-        {visibleItems.length ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {visibleItems.map((progress) => {
-              const file = findLocalFileForProgress(progress, fileById);
-              const percent = getPlaybackProgressPercent(progress);
-              const title =
-                file?.displayTitle ??
-                file?.sourceMediaTitle ??
-                progress.mediaTitle ??
-                'Local episode';
-              const episodeNumber = file?.episodeNumber ?? progress.episodeNumber;
+    <div className="space-y-10">
+      <HomeContinueWatchingSection
+        fileById={fileById}
+        items={visibleContinueWatching}
+        loading={continueWatchingLoading}
+        onResume={onResume}
+      />
+      <HomeNewPopularSection
+        error={newPopularError}
+        items={newPopular}
+        loading={newPopularLoading}
+        onSelect={onAnimeSelect}
+      />
+    </div>
+  );
+}
 
-              return (
-                <div className="rounded-lg border p-3" key={progress.id}>
-                  <div className="space-y-2">
-                    <div>
-                      <p className="line-clamp-2 text-sm font-medium">{title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {episodeNumber
-                          ? `Episode ${episodeNumber}`
-                          : progress.episodeTitle ?? file?.filename ?? 'Episode'}
-                      </p>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full bg-primary"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {formatDuration(progress.positionSeconds)}
-                        {progress.durationSeconds
-                          ? ` / ${formatDuration(progress.durationSeconds)}`
-                          : ''}
-                      </span>
-                      <Button
-                        disabled={!file?.metadataId && !progress.metadataId}
-                        size="sm"
-                        type="button"
-                        onClick={() => onResume(progress)}
-                      >
-                        <Play />
-                        Resume
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+function HomeSectionTitle({ title }: { title: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <ChevronDown className="size-4 -rotate-90 text-muted-foreground" />
+    </div>
+  );
+}
+
+function HomeContinueWatchingSection({
+  fileById,
+  items,
+  loading,
+  onResume,
+}: {
+  fileById: Map<string, LocalMediaFile>;
+  items: PlaybackProgress[];
+  loading: boolean;
+  onResume: (progress: PlaybackProgress) => void;
+}) {
+  return (
+    <section className="space-y-4">
+      <HomeSectionTitle title="Continue Watching" />
+      {loading && !items.length ? (
+        <div className="flex gap-4 overflow-hidden">
+          {Array.from({ length: 3 }, (_, index) => (
+            <Skeleton
+              className="h-52 w-[min(80vw,28rem)] shrink-0 rounded-lg"
+              key={index}
+            />
+          ))}
+        </div>
+      ) : null}
+      {items.length ? (
+        <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 [scrollbar-width:thin]">
+          {items.map((progress) => (
+            <HomeContinueWatchingCard
+              file={findLocalFileForProgress(progress, fileById)}
+              key={progress.id}
+              progress={progress}
+              onResume={onResume}
+            />
+          ))}
+        </div>
+      ) : null}
+      {!loading && !items.length ? (
+        <p className="text-sm text-muted-foreground">
+          Partially watched episodes will appear here after local playback starts.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function HomeContinueWatchingCard({
+  file,
+  progress,
+  onResume,
+}: {
+  file: LocalMediaFile | undefined;
+  progress: PlaybackProgress;
+  onResume: (progress: PlaybackProgress) => void;
+}) {
+  const percent = getPlaybackProgressPercent(progress);
+  const title =
+    file?.displayTitle ??
+    file?.sourceMediaTitle ??
+    progress.mediaTitle ??
+    'Local episode';
+  const episodeNumber = file?.episodeNumber ?? progress.episodeNumber;
+  const imageUrl = file?.bannerImageUrl ?? file?.coverImageUrl;
+  const coverUrl = file?.coverImageUrl ?? file?.bannerImageUrl;
+  const disabled = !file?.metadataId && !progress.metadataId;
+
+  return (
+    <article className="group/continue relative h-52 w-[min(82vw,30rem)] shrink-0 overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
+      {imageUrl ? (
+        <img
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover transition-transform group-hover/continue:scale-[1.02]"
+          src={imageUrl}
+          onError={hideBrokenImage}
+        />
+      ) : null}
+      <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/20" />
+      <div className="absolute inset-x-0 bottom-0 h-1.5 bg-background/40">
+        <div className="h-full bg-primary" style={{ width: `${percent}%` }} />
+      </div>
+      <div className="relative z-10 flex h-full flex-col justify-between p-4">
+        <div className="flex gap-3">
+          <div className="hidden aspect-[2/3] h-24 overflow-hidden rounded-md bg-muted sm:block">
+            {coverUrl ? (
+              <img
+                alt=""
+                className="h-full w-full object-cover"
+                src={coverUrl}
+                onError={hideBrokenImage}
+              />
+            ) : null}
           </div>
-        ) : null}
-        {!loading && !visibleItems.length ? (
-          <p className="text-sm text-muted-foreground">
-            Partially watched episodes will appear here after local playback starts.
-          </p>
-        ) : null}
-      </CardContent>
-    </Card>
+          <div className="min-w-0 space-y-1">
+            <h3 className="line-clamp-2 max-w-sm text-lg font-semibold leading-tight">
+              {title}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {episodeNumber
+                ? `Episode ${episodeNumber}`
+                : progress.episodeTitle ?? file?.filename ?? 'Episode'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground">
+            {formatDuration(progress.positionSeconds)}
+            {progress.durationSeconds
+              ? ` / ${formatDuration(progress.durationSeconds)}`
+              : ''}
+          </span>
+          <Button
+            disabled={disabled}
+            size="sm"
+            type="button"
+            onClick={() => onResume(progress)}
+          >
+            <Play />
+            Resume
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function HomeNewPopularSection({
+  error,
+  items,
+  loading,
+  onSelect,
+}: {
+  error: Error | null;
+  items: AnimeMetadataSearchResult[];
+  loading: boolean;
+  onSelect: (item: AnimeMetadataSearchResult) => void;
+}) {
+  return (
+    <section className="space-y-4">
+      <HomeSectionTitle title="New & Popular" />
+      {loading ? (
+        <div className="grid grid-flow-col grid-rows-2 gap-x-5 gap-y-6 overflow-hidden">
+          {Array.from({ length: 12 }, (_, index) => (
+            <div className="w-36 space-y-3 sm:w-40" key={index}>
+              <Skeleton className="aspect-[2/3] w-full rounded-md" />
+              <Skeleton className="h-4 w-4/5" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="-mx-4 grid grid-flow-col grid-rows-2 gap-x-5 gap-y-6 overflow-x-auto px-4 pb-2 [scrollbar-width:thin]">
+          {items.slice(0, 12).map((item) => (
+            <div className="w-36 sm:w-40" key={item.id}>
+              <AnimeSearchResultCard
+                item={item}
+                selected={false}
+                onSelect={onSelect}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      {!loading && !items.length && !error ? (
+        <p className="text-sm text-muted-foreground">
+          Popular anime will appear here when AniList results are available.
+        </p>
+      ) : null}
+      {error ? <ErrorText error={error} /> : null}
+    </section>
   );
 }
 

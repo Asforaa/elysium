@@ -36,13 +36,9 @@ export class MetadataProvidersController {
     @Query('q') query?: string,
     @Query('sort') sort?: string,
   ) {
-    if (!query?.trim()) {
-      throw new BadRequestException('Missing anime search query');
-    }
-
     return this.metadataProviders
       .getAdapter(providerId)
-      .searchAnime(query, { sort: normalizeAnimeSearchSort(sort) });
+      .searchAnime(query?.trim() ?? '', { sort: normalizeAnimeSearchSort(sort) });
   }
 
   @Get(':providerId/anime/:id')

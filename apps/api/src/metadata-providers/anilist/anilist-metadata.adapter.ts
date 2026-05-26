@@ -140,7 +140,7 @@ const ANILIST_SEARCH_SORTS: Record<AnimeMetadataSearchSort, string[]> = {
 };
 
 const SEARCH_QUERY = `
-  query ElysiumAnimeSearch($search: String!, $perPage: Int!, $sort: [MediaSort]) {
+  query ElysiumAnimeSearch($search: String, $perPage: Int!, $sort: [MediaSort]) {
     Page(page: 1, perPage: $perPage) {
       media(search: $search, type: ANIME, sort: $sort) {
         id
@@ -344,7 +344,7 @@ export class AniListMetadataAdapter implements MetadataProviderAdapter {
     const data = await this.postGraphql<{
       Page?: { media?: AniListMediaBase[] | null } | null;
     }>(SEARCH_QUERY, {
-      search: query,
+      search: query.trim() || null,
       perPage: 12,
       sort: ANILIST_SEARCH_SORTS[options.sort ?? 'popularity'],
     });
