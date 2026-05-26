@@ -1,4 +1,6 @@
 import type {
+  AnimeAiringScheduleOptions,
+  AnimeAiringSchedulePage,
   AnimeMetadataDetails,
   AnimeMetadataSearchOptions,
   AnimeMetadataSearchResult,
@@ -83,6 +85,23 @@ export async function searchAnimeMetadata(
 
 export async function getAnimeMetadata(id: number): Promise<AnimeMetadataDetails> {
   return getJson(`/metadata/anilist/anime/${id}`);
+}
+
+export async function listAnimeAiringSchedule({
+  mediaIds,
+  page = 1,
+  perPage = 24,
+}: AnimeAiringScheduleOptions = {}): Promise<AnimeAiringSchedulePage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    perPage: String(perPage),
+  });
+
+  if (mediaIds?.length) {
+    params.set('mediaIds', mediaIds.join(','));
+  }
+
+  return getJson(`/metadata/anilist/airing-schedule?${params.toString()}`);
 }
 
 export async function searchMedia(query: string): Promise<MediaSearchResult[]> {

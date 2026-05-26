@@ -55,6 +55,20 @@ export class MetadataProvidersController {
       });
   }
 
+  @Get(':providerId/airing-schedule')
+  listAiringSchedule(
+    @Param('providerId') providerId: MetadataProviderId,
+    @Query('page') page?: string,
+    @Query('perPage') perPage?: string,
+    @Query('mediaIds') mediaIds?: string,
+  ) {
+    return this.metadataProviders.getAdapter(providerId).listAiringSchedule({
+      mediaIds: normalizeMediaIds(mediaIds),
+      page: normalizeOptionalPositiveInteger(page, 'page'),
+      perPage: normalizeOptionalPositiveInteger(perPage, 'perPage'),
+    });
+  }
+
   @Get(':providerId/anime/:id')
   getAnimeDetails(
     @Param('providerId') providerId: MetadataProviderId,
@@ -68,6 +82,40 @@ export class MetadataProvidersController {
 
     return this.metadataProviders.getAdapter(providerId).getAnimeDetails(id);
   }
+}
+
+function normalizeOptionalPositiveInteger(
+  value: string | undefined,
+  label: string,
+) {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = Number(value);
+
+  if (Number.isInteger(normalized) && normalized > 0) {
+    return normalized;
+  }
+
+  throw new BadRequestException(`Invalid ${label}: ${value}`);
+}
+
+function normalizeMediaIds(value: string | undefined) {
+  if (!value?.trim()) {
+    return undefined;
+  }
+
+  const ids = value
+    .split(',')
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isInteger(item) && item > 0);
+
+  if (!ids.length) {
+    throw new BadRequestException(`Invalid mediaIds: ${value}`);
+  }
+
+  return Array.from(new Set(ids));
 }
 
 function normalizeAnimeSeason(season: string | undefined) {

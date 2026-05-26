@@ -5,9 +5,15 @@ import type {
   FormEvent,
   MouseEvent,
   PointerEvent,
+  ReactNode,
   SyntheticEvent,
 } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -39,6 +45,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import type {
+  AnimeAiringEpisode,
   AnimeMetadataDetails,
   AnimeMetadataSeason,
   AnimeMetadataSearchResult,
@@ -62,6 +69,7 @@ import {
   getAuthSession,
   getDownloadOptions,
   getEpisodes,
+  listAnimeAiringSchedule,
   getLocalMediaStreamUrl,
   getPlaybackProgress,
   getStreamingOptions,
@@ -208,6 +216,8 @@ type SidebarRoutePath =
   | '/downloads'
   | '/account';
 
+type MediaHomeRoute = 'anime' | 'movies' | 'tv-shows';
+
 type SidebarNavItem = {
   icon: LucideIcon;
   path: SidebarRoutePath;
@@ -241,6 +251,7 @@ function App({
   animeSearchTitle: routeAnimeSearchTitle,
   currentlyWatchingRoute = false,
   downloadsRoute = false,
+  mediaHomeRoute,
   placeholderRoute,
   routeAnimeId,
   routeEpisodeNumber,
@@ -253,6 +264,7 @@ function App({
   animeSearchTitle?: string;
   currentlyWatchingRoute?: boolean;
   downloadsRoute?: boolean;
+  mediaHomeRoute?: MediaHomeRoute;
   placeholderRoute?: SidebarItemTitle;
   routeAnimeId?: number;
   routeEpisodeNumber?: string;
@@ -272,9 +284,12 @@ function App({
   const showingEpisodeRoute = Boolean(routeEpisodeNumber);
   const [sidebarOpen, setSidebarOpen] = useState(!showingEpisodeRoute);
   const currentAnimeSeason = useMemo(() => getCurrentAnimeSeason(), []);
+  const showingMediaHomeRoute = Boolean(mediaHomeRoute);
+  const animeHomeEnabled = mediaHomeRoute === 'anime';
   const showingHomeRoute =
     !currentlyWatchingRoute &&
     !downloadsRoute &&
+    !showingMediaHomeRoute &&
     !placeholderRoute &&
     !showingAnimeSearch &&
     !selectedAnimeId;
@@ -440,6 +455,10 @@ function App({
   });
   const continueWatching =
     continueWatchingQuery.data ?? EMPTY_PLAYBACK_PROGRESS;
+  const currentlyWatchingAnimeIds = useMemo(
+    () => getCurrentlyWatchingAnimeIds(continueWatching, localMediaFiles),
+    [continueWatching, localMediaFiles],
+  );
   const newPopularQuery = useQuery({
     queryKey: [
       'metadata',
@@ -455,10 +474,53 @@ function App({
         seasonYear: currentAnimeSeason.year,
         sort: 'popularity',
       }),
-    enabled: showingHomeRoute,
+    enabled: showingHomeRoute || animeHomeEnabled,
     staleTime: 5 * 60_000,
   });
   const newPopularAnime = newPopularQuery.data ?? EMPTY_ANIME_RESULTS;
+  const latestAiringQuery = useInfiniteQuery({
+    queryKey: ['metadata', 'anilist', 'airing-schedule', 'latest'],
+    queryFn: ({ pageParam }) =>
+      listAnimeAiringSchedule({
+        page: Number(pageParam),
+        perPage: 24,
+      }),
+    enabled: animeHomeEnabled,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasNextPage ? lastPage.page + 1 : undefined,
+    initialPageParam: 1,
+    staleTime: 60_000,
+  });
+  const currentlyWatchingAiringQuery = useInfiniteQuery({
+    queryKey: [
+      'metadata',
+      'anilist',
+      'airing-schedule',
+      'currently-watching',
+      currentlyWatchingAnimeIds.join(','),
+    ],
+    queryFn: ({ pageParam }) =>
+      listAnimeAiringSchedule({
+        mediaIds: currentlyWatchingAnimeIds,
+        page: Number(pageParam),
+        perPage: 12,
+      }),
+    enabled: animeHomeEnabled && currentlyWatchingAnimeIds.length > 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasNextPage ? lastPage.page + 1 : undefined,
+    initialPageParam: 1,
+    staleTime: 60_000,
+  });
+  const latestAiringEpisodes = useMemo(
+    () => latestAiringQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [latestAiringQuery.data],
+  );
+  const currentlyWatchingAiringEpisodes = useMemo(
+    () =>
+      currentlyWatchingAiringQuery.data?.pages.flatMap((page) => page.items) ??
+      [],
+    [currentlyWatchingAiringQuery.data],
+  );
   const selectedEpisodeFiles = useMemo(
     () =>
       getLocalFilesForEpisode({
@@ -675,6 +737,12 @@ function App({
         activeItem={
           downloadsRoute
             ? 'Downloads'
+            : mediaHomeRoute === 'anime'
+              ? 'Anime'
+              : mediaHomeRoute === 'tv-shows'
+                ? 'TV Shows'
+                : mediaHomeRoute === 'movies'
+                  ? 'Movies'
             : placeholderRoute ??
               (selectedAnimeId || showingAnimeSearch || animeSearchRoute
                 ? 'Anime'
@@ -729,6 +797,7 @@ function App({
                   animeSearchRoute={animeSearchRoute || showingAnimeSearch}
                   currentlyWatchingRoute={currentlyWatchingRoute}
                   downloadsRoute={downloadsRoute}
+                  mediaHomeRoute={mediaHomeRoute}
                   placeholderRoute={placeholderRoute}
                   routeEpisodeNumber={routeEpisodeNumber}
                   selectedEpisode={selectedEpisode}
@@ -915,6 +984,68 @@ function App({
             !currentlyWatchingRoute &&
             !placeholderRoute &&
             !showingAnimeSearch &&
+            mediaHomeRoute ? (
+              <HomePage
+                afterContinueWatching={
+                  animeHomeEnabled ? (
+                    <>
+                      <AnimeAiringEpisodeSection
+                        emptyText={
+                          currentlyWatchingAnimeIds.length
+                            ? 'No published episodes found yet for currently watched anime.'
+                            : 'Start watching anime locally to see new episode releases here.'
+                        }
+                        error={currentlyWatchingAiringQuery.error}
+                        fetchingNextPage={
+                          currentlyWatchingAiringQuery.isFetchingNextPage
+                        }
+                        hasNextPage={Boolean(
+                          currentlyWatchingAiringQuery.hasNextPage,
+                        )}
+                        items={currentlyWatchingAiringEpisodes}
+                        loading={currentlyWatchingAiringQuery.isLoading}
+                        title="Latest From Currently Watching"
+                        onAnimeSelect={handleAnimeSelect}
+                        onLoadMore={() =>
+                          void currentlyWatchingAiringQuery.fetchNextPage()
+                        }
+                      />
+                      <AnimeAiringEpisodeSection
+                        emptyText="No published anime episodes found yet."
+                        error={latestAiringQuery.error}
+                        fetchingNextPage={latestAiringQuery.isFetchingNextPage}
+                        hasNextPage={Boolean(latestAiringQuery.hasNextPage)}
+                        items={latestAiringEpisodes}
+                        loading={latestAiringQuery.isLoading}
+                        title="Latest Published Episodes"
+                        onAnimeSelect={handleAnimeSelect}
+                        onLoadMore={() => void latestAiringQuery.fetchNextPage()}
+                      />
+                    </>
+                  ) : null
+                }
+                continueWatching={animeHomeEnabled ? continueWatching : []}
+                continueWatchingLoading={
+                  animeHomeEnabled && continueWatchingQuery.isFetching
+                }
+                files={animeHomeEnabled ? localMediaFiles : []}
+                newPopular={animeHomeEnabled ? newPopularAnime : []}
+                newPopularError={animeHomeEnabled ? newPopularQuery.error : null}
+                newPopularLoading={animeHomeEnabled && newPopularQuery.isFetching}
+                onAnimeSelect={handleAnimeSelect}
+                onContinueWatchingOpen={
+                  animeHomeEnabled ? handleContinueWatchingOpen : undefined
+                }
+                onNewPopularOpen={animeHomeEnabled ? handleNewPopularOpen : undefined}
+                onResume={handleContinueWatchingSelect}
+              />
+            ) : null}
+
+            {!downloadsRoute &&
+            !currentlyWatchingRoute &&
+            !placeholderRoute &&
+            !showingMediaHomeRoute &&
+            !showingAnimeSearch &&
             showingHomeRoute ? (
               <HomePage
                 continueWatching={continueWatching}
@@ -944,6 +1075,7 @@ function AppBreadcrumbs({
   animeSearchRoute,
   currentlyWatchingRoute,
   downloadsRoute,
+  mediaHomeRoute,
   placeholderRoute,
   routeEpisodeNumber,
   selectedAnimeId,
@@ -953,6 +1085,7 @@ function AppBreadcrumbs({
   animeSearchRoute: boolean;
   currentlyWatchingRoute: boolean;
   downloadsRoute: boolean;
+  mediaHomeRoute?: MediaHomeRoute;
   placeholderRoute?: SidebarItemTitle;
   routeEpisodeNumber?: string;
   selectedAnimeId?: number;
@@ -980,7 +1113,18 @@ function AppBreadcrumbs({
           </BreadcrumbItem>
         ) : null}
 
-        {!downloadsRoute && !currentlyWatchingRoute && placeholderRoute ? (
+        {!downloadsRoute && !currentlyWatchingRoute && mediaHomeRoute ? (
+          <BreadcrumbItem className="min-w-0">
+            <BreadcrumbPage className="truncate">
+              {getMediaHomeRouteTitle(mediaHomeRoute)}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        ) : null}
+
+        {!downloadsRoute &&
+        !currentlyWatchingRoute &&
+        !mediaHomeRoute &&
+        placeholderRoute ? (
           <BreadcrumbItem className="min-w-0">
             <BreadcrumbPage className="truncate">{placeholderRoute}</BreadcrumbPage>
           </BreadcrumbItem>
@@ -988,6 +1132,7 @@ function AppBreadcrumbs({
 
         {!downloadsRoute &&
         !currentlyWatchingRoute &&
+        !mediaHomeRoute &&
         !placeholderRoute &&
         animeSearchRoute ? (
           <>
@@ -1005,6 +1150,7 @@ function AppBreadcrumbs({
 
         {!downloadsRoute &&
         !currentlyWatchingRoute &&
+        !mediaHomeRoute &&
         !placeholderRoute &&
         !animeSearchRoute &&
         anime ? (
@@ -1045,6 +1191,7 @@ function AppBreadcrumbs({
 
         {!downloadsRoute &&
         !currentlyWatchingRoute &&
+        !mediaHomeRoute &&
         !placeholderRoute &&
         !animeSearchRoute &&
         !anime &&
@@ -1064,6 +1211,7 @@ function AppBreadcrumbs({
 
         {!downloadsRoute &&
         !currentlyWatchingRoute &&
+        !mediaHomeRoute &&
         !placeholderRoute &&
         !animeSearchRoute &&
         !selectedAnimeId &&
@@ -3456,6 +3604,7 @@ function EpisodeButton({
 }
 
 function HomePage({
+  afterContinueWatching,
   continueWatching,
   files,
   newPopular,
@@ -3467,6 +3616,7 @@ function HomePage({
   onNewPopularOpen,
   onResume,
 }: {
+  afterContinueWatching?: ReactNode;
   continueWatching: PlaybackProgress[];
   files: LocalMediaFile[];
   newPopular: AnimeMetadataSearchResult[];
@@ -3474,8 +3624,8 @@ function HomePage({
   newPopularLoading: boolean;
   continueWatchingLoading: boolean;
   onAnimeSelect: (item: AnimeMetadataSearchResult) => void;
-  onContinueWatchingOpen: () => void;
-  onNewPopularOpen: () => void;
+  onContinueWatchingOpen?: () => void;
+  onNewPopularOpen?: () => void;
   onResume: (progress: PlaybackProgress) => void;
 }) {
   const fileById = useMemo(() => {
@@ -3501,6 +3651,7 @@ function HomePage({
         onOpen={onContinueWatchingOpen}
         onResume={onResume}
       />
+      {afterContinueWatching}
       <HomeNewPopularSection
         error={newPopularError}
         items={newPopular}
@@ -3725,6 +3876,114 @@ function HomeContinueWatchingCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function AnimeAiringEpisodeSection({
+  emptyText,
+  error,
+  fetchingNextPage,
+  hasNextPage,
+  items,
+  loading,
+  title,
+  onAnimeSelect,
+  onLoadMore,
+}: {
+  emptyText: string;
+  error: Error | null;
+  fetchingNextPage: boolean;
+  hasNextPage: boolean;
+  items: AnimeAiringEpisode[];
+  loading: boolean;
+  title: string;
+  onAnimeSelect: (item: AnimeMetadataSearchResult) => void;
+  onLoadMore: () => void;
+}) {
+  return (
+    <section className="space-y-4">
+      <HomeSectionTitle title={title} />
+      {loading && !items.length ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }, (_, index) => (
+            <Skeleton className="h-28 rounded-lg" key={index} />
+          ))}
+        </div>
+      ) : null}
+      {items.length ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => (
+            <AnimeAiringEpisodeCard
+              item={item}
+              key={item.id}
+              onAnimeSelect={onAnimeSelect}
+            />
+          ))}
+        </div>
+      ) : null}
+      {!loading && !items.length ? (
+        <p className="text-sm text-muted-foreground">{emptyText}</p>
+      ) : null}
+      {hasNextPage ? (
+        <Button
+          disabled={fetchingNextPage}
+          type="button"
+          variant="secondary"
+          onClick={onLoadMore}
+        >
+          {fetchingNextPage ? 'Loading' : 'Load more'}
+        </Button>
+      ) : null}
+      {error ? <ErrorText error={error} /> : null}
+    </section>
+  );
+}
+
+function AnimeAiringEpisodeCard({
+  item,
+  onAnimeSelect,
+}: {
+  item: AnimeAiringEpisode;
+  onAnimeSelect: (item: AnimeMetadataSearchResult) => void;
+}) {
+  const coverUrl =
+    item.anime.coverImage?.large ??
+    item.anime.coverImage?.medium ??
+    item.anime.coverImage?.extraLarge;
+
+  return (
+    <button
+      className="flex min-w-0 gap-3 rounded-lg border bg-card p-3 text-left text-card-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      type="button"
+      onClick={() => onAnimeSelect(item.anime)}
+    >
+      <span className="block aspect-[2/3] h-24 shrink-0 overflow-hidden rounded-md bg-muted">
+        {coverUrl ? (
+          <img
+            alt={`${item.anime.displayTitle} cover`}
+            className="h-full w-full object-cover"
+            src={coverUrl}
+            onError={hideBrokenImage}
+          />
+        ) : null}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col justify-between gap-2">
+        <span className="space-y-1">
+          <span className="line-clamp-2 text-sm font-medium leading-snug">
+            {item.anime.displayTitle}
+          </span>
+          <span className="block text-sm text-muted-foreground">
+            Episode {item.episode}
+          </span>
+        </span>
+        <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <Badge variant="secondary">{formatAiringEpisodeDate(item.airingAt)}</Badge>
+          {item.anime.format ? (
+            <span>{formatMediaFormat(item.anime.format)}</span>
+          ) : null}
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -4046,6 +4305,51 @@ function formatDuration(seconds: number) {
   return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
+function formatAiringEpisodeDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date';
+  }
+
+  return date.toLocaleString('en-US', {
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function getCurrentlyWatchingAnimeIds(
+  progressItems: PlaybackProgress[],
+  files: LocalMediaFile[],
+) {
+  const fileById = new Map(files.map((file) => [file.id, file]));
+  const ids = new Set<number>();
+
+  for (const progress of progressItems) {
+    if (progress.completed) {
+      continue;
+    }
+
+    const file = progress.localMediaFileId
+      ? fileById.get(progress.localMediaFileId)
+      : undefined;
+    const metadataId = file?.metadataId ?? progress.metadataId;
+
+    if (
+      typeof metadataId === 'number' &&
+      Number.isInteger(metadataId) &&
+      metadataId > 0
+    ) {
+      ids.add(metadataId);
+    }
+  }
+
+  return Array.from(ids);
+}
+
 function compareStreamingOptions(first: StreamingOption, second: StreamingOption) {
   const embeddableRank =
     Number(first.embeddable === false) - Number(second.embeddable === false);
@@ -4223,6 +4527,17 @@ function formatToken(value?: string) {
 
 function formatAnimeSeason(season: AnimeMetadataSeason) {
   return formatToken(season) ?? season;
+}
+
+function getMediaHomeRouteTitle(route: MediaHomeRoute) {
+  switch (route) {
+    case 'anime':
+      return 'Anime';
+    case 'movies':
+      return 'Movies';
+    case 'tv-shows':
+      return 'TV Shows';
+  }
 }
 
 function getCurrentAnimeSeason(date = new Date()): {

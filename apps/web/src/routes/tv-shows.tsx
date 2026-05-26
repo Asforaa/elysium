@@ -6,5 +6,5 @@ export const Route = createFileRoute('/tv-shows')({
 });
 
 function TvShowsRoute() {
-  return <App placeholderRoute="TV Shows" />;
+  return <App mediaHomeRoute="tv-shows" />;
 }

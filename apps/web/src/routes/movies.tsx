@@ -6,5 +6,5 @@ export const Route = createFileRoute('/movies')({
 });
 
 function MoviesRoute() {
-  return <App placeholderRoute="Movies" />;
+  return <App mediaHomeRoute="movies" />;
 }

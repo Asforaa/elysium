@@ -1,4 +1,6 @@
 import type {
+  AnimeAiringScheduleOptions,
+  AnimeAiringSchedulePage,
   AnimeMetadataDetails,
   AnimeMetadataSearchOptions,
   AnimeMetadataSearchResult,
@@ -11,5 +13,8 @@ export interface MetadataProviderAdapter {
     query: string,
     options?: AnimeMetadataSearchOptions,
   ): Promise<AnimeMetadataSearchResult[]>;
+  listAiringSchedule(
+    options?: AnimeAiringScheduleOptions,
+  ): Promise<AnimeAiringSchedulePage>;
   getAnimeDetails(id: number): Promise<AnimeMetadataDetails>;
 }

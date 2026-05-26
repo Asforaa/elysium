@@ -6,5 +6,5 @@ export const Route = createFileRoute('/anime/')({
 });
 
 function AnimeIndexRoute() {
-  return <App placeholderRoute="Anime" />;
+  return <App mediaHomeRoute="anime" />;
 }

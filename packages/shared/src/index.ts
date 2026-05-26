@@ -104,6 +104,27 @@ export interface AnimeMetadataSearchResult {
   siteUrl?: string;
 }
 
+export interface AnimeAiringEpisode {
+  id: number;
+  episode: number;
+  airingAt: string;
+  anime: AnimeMetadataSearchResult;
+}
+
+export interface AnimeAiringSchedulePage {
+  hasNextPage: boolean;
+  items: AnimeAiringEpisode[];
+  page: number;
+  perPage: number;
+  total?: number;
+}
+
+export interface AnimeAiringScheduleOptions {
+  mediaIds?: number[];
+  page?: number;
+  perPage?: number;
+}
+
 export interface AnimeCharacter {
   id: number;
   name: string;

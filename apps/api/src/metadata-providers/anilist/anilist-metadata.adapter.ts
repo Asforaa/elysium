@@ -1,4 +1,7 @@
 import type {
+  AnimeAiringEpisode,
+  AnimeAiringScheduleOptions,
+  AnimeAiringSchedulePage,
   AnimeCharacter,
   AnimeImage,
   AnimeMetadataDetails,
@@ -123,6 +126,20 @@ interface AniListRelationEdge {
   node?: AniListMediaBase | null;
 }
 
+interface AniListPageInfo {
+  currentPage?: number | null;
+  hasNextPage?: boolean | null;
+  perPage?: number | null;
+  total?: number | null;
+}
+
+interface AniListAiringSchedule {
+  id: number;
+  episode?: number | null;
+  airingAt?: number | null;
+  media?: AniListMediaBase | null;
+}
+
 interface AniListGraphqlResponse<T> {
   data?: T;
   errors?: Array<{ message?: string }>;
@@ -179,6 +196,118 @@ const SEARCH_QUERY = `
         trending
         updatedAt
         siteUrl
+      }
+    }
+  }
+`;
+
+const AIRING_SCHEDULE_QUERY = `
+  query ElysiumAiringSchedule($page: Int!, $perPage: Int!) {
+    Page(page: $page, perPage: $perPage) {
+      pageInfo {
+        currentPage
+        hasNextPage
+        perPage
+        total
+      }
+      airingSchedules(notYetAired: false, sort: TIME_DESC) {
+        id
+        episode
+        airingAt
+        media {
+          id
+          idMal
+          type
+          title {
+            romaji
+            english
+            native
+            userPreferred
+          }
+          description(asHtml: false)
+          coverImage {
+            extraLarge
+            large
+            medium
+            color
+          }
+          bannerImage
+          episodes
+          duration
+          format
+          status
+          season
+          seasonYear
+          startDate {
+            year
+            month
+            day
+          }
+          genres
+          synonyms
+          averageScore
+          popularity
+          favourites
+          trending
+          updatedAt
+          siteUrl
+        }
+      }
+    }
+  }
+`;
+
+const AIRING_SCHEDULE_BY_MEDIA_QUERY = `
+  query ElysiumAiringScheduleByMedia($page: Int!, $perPage: Int!, $mediaIdIn: [Int]) {
+    Page(page: $page, perPage: $perPage) {
+      pageInfo {
+        currentPage
+        hasNextPage
+        perPage
+        total
+      }
+      airingSchedules(mediaId_in: $mediaIdIn, notYetAired: false, sort: TIME_DESC) {
+        id
+        episode
+        airingAt
+        media {
+          id
+          idMal
+          type
+          title {
+            romaji
+            english
+            native
+            userPreferred
+          }
+          description(asHtml: false)
+          coverImage {
+            extraLarge
+            large
+            medium
+            color
+          }
+          bannerImage
+          episodes
+          duration
+          format
+          status
+          season
+          seasonYear
+          startDate {
+            year
+            month
+            day
+          }
+          genres
+          synonyms
+          averageScore
+          popularity
+          favourites
+          trending
+          updatedAt
+          siteUrl
+        }
       }
     }
   }
@@ -367,6 +496,38 @@ export class AniListMetadataAdapter implements MetadataProviderAdapter {
     return this.toDetails(data.Media);
   }
 
+  async listAiringSchedule(
+    options: AnimeAiringScheduleOptions = {},
+  ): Promise<AnimeAiringSchedulePage> {
+    const page = normalizePositiveInteger(options.page, 1);
+    const perPage = Math.min(normalizePositiveInteger(options.perPage, 24), 50);
+    const mediaIds = normalizeMediaIds(options.mediaIds);
+    const data = await this.postGraphql<{
+      Page?: {
+        airingSchedules?: AniListAiringSchedule[] | null;
+        pageInfo?: AniListPageInfo | null;
+      } | null;
+    }>(
+      mediaIds.length ? AIRING_SCHEDULE_BY_MEDIA_QUERY : AIRING_SCHEDULE_QUERY,
+      {
+        page,
+        perPage,
+        ...(mediaIds.length ? { mediaIdIn: mediaIds } : {}),
+      },
+    );
+    const pageInfo = data.Page?.pageInfo;
+
+    return {
+      hasNextPage: Boolean(pageInfo?.hasNextPage),
+      items: (data.Page?.airingSchedules ?? [])
+        .map((item) => this.toAiringEpisode(item))
+        .filter((item): item is AnimeAiringEpisode => Boolean(item)),
+      page: pageInfo?.currentPage ?? page,
+      perPage: pageInfo?.perPage ?? perPage,
+      total: pageInfo?.total ?? undefined,
+    };
+  }
+
   private async postGraphql<T>(
     query: string,
     variables: Record<string, unknown>,
@@ -429,6 +590,21 @@ export class AniListMetadataAdapter implements MetadataProviderAdapter {
       trending: media.trending ?? undefined,
       updatedAt: media.updatedAt ?? undefined,
       siteUrl: media.siteUrl ?? undefined,
+    };
+  }
+
+  private toAiringEpisode(
+    item: AniListAiringSchedule,
+  ): AnimeAiringEpisode | undefined {
+    if (!item.id || !item.episode || !item.airingAt || !item.media) {
+      return undefined;
+    }
+
+    return {
+      id: item.id,
+      episode: item.episode,
+      airingAt: new Date(item.airingAt * 1000).toISOString(),
+      anime: this.toSearchResult(item.media),
     };
   }
 
@@ -629,6 +805,27 @@ function normalizeNextAiringEpisode(
     episode: nextAiringEpisode.episode,
     timeUntilAiringSeconds: nextAiringEpisode.timeUntilAiring,
   };
+}
+
+function normalizePositiveInteger(
+  value: number | undefined,
+  fallback: number,
+): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+
+  return fallback;
+}
+
+function normalizeMediaIds(mediaIds: number[] | undefined) {
+  return Array.from(
+    new Set(
+      (mediaIds ?? []).filter(
+        (mediaId) => Number.isInteger(mediaId) && mediaId > 0,
+      ),
+    ),
+  );
 }
 
 function cleanDescription(
