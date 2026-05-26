@@ -677,7 +677,7 @@ export function getLocalFilesForEpisode({
 
   return files
     .filter((file) => {
-      if (animeId && file.metadataId && file.metadataId !== animeId) {
+      if (animeId && file.metadataId !== animeId) {
         return false;
       }
 
