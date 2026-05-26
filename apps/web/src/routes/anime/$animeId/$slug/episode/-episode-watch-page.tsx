@@ -6,7 +6,7 @@ import type {
   SyntheticEvent,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createPlayer, selectControls, selectFullscreen } from "@videojs/react";
+import { createPlayer, selectControls } from "@videojs/react";
 import { Video, VideoSkin, videoFeatures } from "@videojs/react/video";
 import "@videojs/react/video/skin.css";
 import { ChevronLeft, Clapperboard } from "lucide-react";
@@ -103,12 +103,14 @@ export function ElysiumVideoPlayer({
     useState<SeekHoverPreview | null>(null);
   const [playbackFeedback, setPlaybackFeedback] =
     useState<PlaybackFeedback | null>(null);
+  const [appFullscreen, setAppFullscreen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const previewVideoRef = useRef<HTMLVideoElement>(null);
+  const playerRootRef = useRef<HTMLDivElement>(null);
   const seekFeedbackTimeoutRef = useRef<number | undefined>(undefined);
   const seekHoverPreviewFrameRef = useRef<number | undefined>(undefined);
   const pendingSeekHoverPreviewRef = useRef<SeekHoverPreview | null>(null);
   const playbackFeedbackTimeoutRef = useRef<number | undefined>(undefined);
+  const fullscreenPointerHandledRef = useRef(false);
 
   useEffect(
     () => () => {
@@ -128,49 +130,98 @@ export function ElysiumVideoPlayer({
   );
 
   useEffect(() => {
-    if (!seekHoverPreview) {
+    function handleFullscreenChange() {
+      setAppFullscreen(document.fullscreenElement === document.documentElement);
+    }
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.toggleAttribute(
+      "data-elysium-player-fullscreen",
+      appFullscreen,
+    );
+
+    return () => {
+      document.documentElement.removeAttribute(
+        "data-elysium-player-fullscreen",
+      );
+    };
+  }, [appFullscreen]);
+
+  useEffect(() => {
+    if (!appFullscreen) {
       return undefined;
     }
 
-    const previewVideo = previewVideoRef.current;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !document.fullscreenElement) {
+        setAppFullscreen(false);
+      }
+    }
 
-    if (!previewVideo) {
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [appFullscreen]);
+
+  useEffect(() => {
+    const playerRoot = playerRootRef.current;
+
+    if (!playerRoot) {
       return undefined;
     }
 
-    const measuredPreviewVideo = previewVideo;
-    const targetTime = seekHoverPreview.timeSeconds;
+    function handleNativeFullscreenIntent(event: Event) {
+      const fullscreenButton = isFullscreenButtonTarget(event.target);
 
-    function seekPreviewVideo() {
-      if (!Number.isFinite(targetTime)) {
+      if (!fullscreenButton) {
         return;
       }
 
-      try {
-        if (Math.abs(measuredPreviewVideo.currentTime - targetTime) > 0.15) {
-          measuredPreviewVideo.currentTime = targetTime;
-        }
-      } catch {
-        // Some browsers reject rapid preview seeks while metadata is settling.
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (event.type === "pointerdown") {
+        fullscreenPointerHandledRef.current = true;
+        toggleAppFullscreen();
+        return;
       }
+
+      if (fullscreenPointerHandledRef.current) {
+        fullscreenPointerHandledRef.current = false;
+        return;
+      }
+
+      toggleAppFullscreen();
     }
 
-    if (measuredPreviewVideo.readyState >= 1) {
-      seekPreviewVideo();
-      return undefined;
-    }
-
-    measuredPreviewVideo.addEventListener("loadedmetadata", seekPreviewVideo, {
-      once: true,
-    });
+    playerRoot.addEventListener(
+      "pointerdown",
+      handleNativeFullscreenIntent,
+      true,
+    );
+    playerRoot.addEventListener("click", handleNativeFullscreenIntent, true);
 
     return () => {
-      measuredPreviewVideo.removeEventListener(
-        "loadedmetadata",
-        seekPreviewVideo,
+      playerRoot.removeEventListener(
+        "pointerdown",
+        handleNativeFullscreenIntent,
+        true,
+      );
+      playerRoot.removeEventListener(
+        "click",
+        handleNativeFullscreenIntent,
+        true,
       );
     };
-  }, [seekHoverPreview, src]);
+  }, [appFullscreen]);
 
   function showSeekFeedback(direction: SeekFeedback["direction"]) {
     if (seekFeedbackTimeoutRef.current) {
@@ -225,6 +276,40 @@ export function ElysiumVideoPlayer({
     }
 
     setSeekHoverPreview(null);
+  }
+
+  async function enterAppFullscreen() {
+    setAppFullscreen(true);
+
+    try {
+      await document.documentElement.requestFullscreen({
+        navigationUI: "hide",
+      });
+    } catch {
+      // Keep a soft app-fullscreen surface if the browser refuses Fullscreen API.
+    }
+  }
+
+  async function exitAppFullscreen() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } finally {
+      setAppFullscreen(false);
+    }
+  }
+
+  function toggleAppFullscreen() {
+    void (appFullscreen || document.fullscreenElement
+      ? exitAppFullscreen()
+      : enterAppFullscreen());
+  }
+
+  function isFullscreenButtonTarget(target: EventTarget | null) {
+    return target instanceof HTMLElement
+      ? target.closest<HTMLButtonElement>(".media-button--fullscreen")
+      : null;
   }
 
   function handleClickCapture(event: MouseEvent<HTMLDivElement>) {
@@ -314,10 +399,12 @@ export function ElysiumVideoPlayer({
   return (
     <ELYSIUM_VIDEO_PLAYER.Provider key={src}>
       <div
-        className="relative h-full w-full"
+        className="elysium-video-shell relative h-full w-full"
+        data-app-fullscreen={appFullscreen ? "" : undefined}
         onClickCapture={handleClickCapture}
         onPointerLeave={handlePointerLeaveCapture}
         onPointerMoveCapture={handlePointerMoveCapture}
+        ref={playerRootRef}
       >
         <VideoSkin
           className="h-full w-full"
@@ -332,7 +419,7 @@ export function ElysiumVideoPlayer({
           <Video
             key={src}
             playsInline
-            preload="metadata"
+            preload="auto"
             ref={videoRef}
             src={src}
             onEnded={onEnded}
@@ -345,16 +432,17 @@ export function ElysiumVideoPlayer({
             <ElysiumPlaybackFeedback feedback={playbackFeedback} />
           ) : null}
           {seekHoverPreview ? (
-            <ElysiumSeekHoverPreview
-              poster={poster}
-              preview={seekHoverPreview}
-              previewVideoRef={previewVideoRef}
-              src={src}
-            />
+            <ElysiumSeekHoverPreview preview={seekHoverPreview} />
           ) : null}
-          {nowPlaying ? <ElysiumPlayerTopShade /> : null}
           {nowPlaying ? (
-            <ElysiumPlayerNowPlaying nowPlaying={nowPlaying} />
+            <ElysiumPlayerTopShade appFullscreen={appFullscreen} />
+          ) : null}
+          {nowPlaying ? (
+            <ElysiumPlayerNowPlaying
+              appFullscreen={appFullscreen}
+              nowPlaying={nowPlaying}
+              onExitFullscreen={() => void exitAppFullscreen()}
+            />
           ) : null}
           {seekFeedback ? (
             <ElysiumSeekFeedback feedback={seekFeedback} />
@@ -369,17 +457,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function ElysiumSeekHoverPreview({
-  poster,
-  preview,
-  previewVideoRef,
-  src,
-}: {
-  poster?: string;
-  preview: SeekHoverPreview;
-  previewVideoRef: { current: HTMLVideoElement | null };
-  src: string;
-}) {
+function ElysiumSeekHoverPreview({ preview }: { preview: SeekHoverPreview }) {
   return (
     <div
       aria-hidden="true"
@@ -389,16 +467,6 @@ function ElysiumSeekHoverPreview({
         left: `${preview.leftPx}px`,
       }}
     >
-      <div className="elysium-seek-hover-preview__frame">
-        <video
-          muted
-          playsInline
-          poster={poster}
-          preload="metadata"
-          ref={previewVideoRef}
-          src={src}
-        />
-      </div>
       <time className="elysium-seek-hover-preview__time">
         {formatDuration(preview.timeSeconds)}
       </time>
@@ -406,10 +474,13 @@ function ElysiumSeekHoverPreview({
   );
 }
 
-function ElysiumPlayerTopShade() {
+function ElysiumPlayerTopShade({
+  appFullscreen,
+}: {
+  appFullscreen: boolean;
+}) {
   const controls = ELYSIUM_VIDEO_PLAYER.usePlayer(selectControls);
-  const fullscreen = ELYSIUM_VIDEO_PLAYER.usePlayer(selectFullscreen);
-  const visible = Boolean(fullscreen?.fullscreen && controls?.controlsVisible);
+  const visible = Boolean(appFullscreen && controls?.controlsVisible);
 
   return (
     <div
@@ -421,22 +492,21 @@ function ElysiumPlayerTopShade() {
 }
 
 function ElysiumPlayerNowPlaying({
+  appFullscreen,
   nowPlaying,
+  onExitFullscreen,
 }: {
+  appFullscreen: boolean;
   nowPlaying: PlayerNowPlaying;
+  onExitFullscreen: () => void;
 }) {
   const controls = ELYSIUM_VIDEO_PLAYER.usePlayer(selectControls);
-  const fullscreen = ELYSIUM_VIDEO_PLAYER.usePlayer(selectFullscreen);
-  const visible = Boolean(fullscreen?.fullscreen && controls?.controlsVisible);
+  const visible = Boolean(appFullscreen && controls?.controlsVisible);
   const episodeLine = nowPlaying.episodeNumber
     ? [`Episode ${nowPlaying.episodeNumber}`, nowPlaying.episodeTitle]
         .filter(Boolean)
         .join(": ")
     : undefined;
-
-  function handleExitFullscreen() {
-    void fullscreen?.exitFullscreen().catch(() => undefined);
-  }
 
   return (
     <div
@@ -446,9 +516,9 @@ function ElysiumPlayerNowPlaying({
       <button
         aria-label="Exit fullscreen"
         className="elysium-player-now-playing__back"
-        disabled={!fullscreen?.fullscreen}
+        disabled={!appFullscreen}
         type="button"
-        onClick={handleExitFullscreen}
+        onClick={onExitFullscreen}
       >
         <ChevronLeft
           aria-hidden="true"
