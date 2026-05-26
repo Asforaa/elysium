@@ -5,12 +5,13 @@ import type {
   DownloadMediaContext,
   MetadataProviderId,
 } from '@elysium/shared';
-import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { basename, extname, resolve } from 'node:path';
+import { copyFile, mkdir, stat, writeFile } from 'node:fs/promises';
+import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
+import { getEnvValue } from '../database/database.config';
 import { AniListMetadataAdapter } from '../metadata-providers/anilist/anilist-metadata.adapter';
 import { MediaLibraryRepository } from './media-library.repository';
 
-const DEFAULT_METADATA_CACHE_DIR = resolve(process.cwd(), '../../.local/metadata');
+const MEDIA_METADATA_CACHE_SUBDIR = '.elysium/metadata';
 const ARTWORK_REQUEST_HEADERS = {
   accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
   'user-agent': 'Elysium/0.1',
@@ -259,13 +260,35 @@ export class MediaMetadataCacheService {
     provider: MetadataProviderId;
     url?: string;
   }): Promise<CachedArtworkAsset | undefined> {
-    if (!isRemoteHttpUrl(url)) {
+    const cacheRoot = this.getCacheRoot();
+
+    if (existingAsset && (await fileExists(existingAsset.filePath))) {
+      if (isInsidePath(cacheRoot, existingAsset.filePath)) {
+        return existingAsset;
+      }
+
+      const copied = await this.copyExistingArtworkAsset({
+        cacheRoot,
+        existingAsset,
+        id,
+        kind,
+        provider,
+      });
+
+      if (copied) {
+        return copied;
+      }
+    }
+
+    const sourceUrl = getRemoteArtworkSourceUrl(url, existingAsset);
+
+    if (!sourceUrl) {
       return existingAsset;
     }
 
-    const response = await fetch(url, { headers: ARTWORK_REQUEST_HEADERS }).catch(
-      () => undefined,
-    );
+    const response = await fetch(sourceUrl, {
+      headers: ARTWORK_REQUEST_HEADERS,
+    }).catch(() => undefined);
 
     if (!response?.ok) {
       return existingAsset;
@@ -278,8 +301,11 @@ export class MediaMetadataCacheService {
     }
 
     const extension =
-      extensionFromContentType(contentType) ?? extensionFromUrl(url) ?? '.jpg';
-    const directory = resolve(this.getCacheRoot(), provider, String(id));
+      extensionFromContentType(contentType) ??
+      extensionFromUrl(sourceUrl) ??
+      extensionFromPath(existingAsset?.filePath) ??
+      '.jpg';
+    const directory = resolve(cacheRoot, provider, String(id));
     const filename = `${kind}${extension}`;
     const filePath = resolve(directory, filename);
 
@@ -292,7 +318,41 @@ export class MediaMetadataCacheService {
       filePath,
       kind,
       localUrl: `/metadata/${provider}/assets/${id}/${filename}`,
-      originalUrl: url,
+      originalUrl: sourceUrl,
+    };
+  }
+
+  private async copyExistingArtworkAsset({
+    cacheRoot,
+    existingAsset,
+    id,
+    kind,
+    provider,
+  }: {
+    cacheRoot: string;
+    existingAsset: CachedArtworkAsset;
+    id: number;
+    kind: string;
+    provider: MetadataProviderId;
+  }) {
+    const extension =
+      extensionFromContentType(existingAsset.contentType ?? '') ??
+      extensionFromPath(existingAsset.filePath) ??
+      extensionFromRemoteUrl(existingAsset.originalUrl) ??
+      '.jpg';
+    const directory = resolve(cacheRoot, provider, String(id));
+    const filename = `${kind}${extension}`;
+    const filePath = resolve(directory, filename);
+
+    await mkdir(directory, { recursive: true });
+    await copyFile(existingAsset.filePath, filePath);
+
+    return {
+      ...existingAsset,
+      cachedAt: new Date().toISOString(),
+      filePath,
+      kind,
+      localUrl: `/metadata/${provider}/assets/${id}/${filename}`,
     };
   }
 
@@ -310,7 +370,21 @@ export class MediaMetadataCacheService {
   }
 
   private getCacheRoot() {
-    return process.env.ELYSIUM_METADATA_CACHE_DIR ?? DEFAULT_METADATA_CACHE_DIR;
+    const explicitCacheRoot = getEnvValue('ELYSIUM_METADATA_CACHE_DIR');
+
+    if (explicitCacheRoot) {
+      return explicitCacheRoot;
+    }
+
+    const mediaRoot = getEnvValue('ELYSIUM_MEDIA_ROOT');
+
+    if (!mediaRoot) {
+      throw new Error(
+        'ELYSIUM_MEDIA_ROOT must be configured before caching metadata artwork.',
+      );
+    }
+
+    return resolve(mediaRoot, MEDIA_METADATA_CACHE_SUBDIR);
   }
 }
 
@@ -348,8 +422,43 @@ function isRemoteHttpUrl(url: string | undefined): url is string {
   }
 }
 
+function getRemoteArtworkSourceUrl(
+  url: string | undefined,
+  existingAsset: CachedArtworkAsset | undefined,
+) {
+  if (isRemoteHttpUrl(url)) {
+    return url;
+  }
+
+  if (isRemoteHttpUrl(existingAsset?.originalUrl)) {
+    return existingAsset.originalUrl;
+  }
+
+  return undefined;
+}
+
+async function fileExists(filePath: string) {
+  return Boolean((await stat(filePath).catch(() => undefined))?.isFile());
+}
+
+function isInsidePath(parentPath: string, childPath: string) {
+  const path = relative(resolve(parentPath), resolve(childPath));
+
+  return path === '' || (!path.startsWith('..') && !isAbsolute(path));
+}
+
 function extensionFromUrl(url: string) {
   const extension = extname(new URL(url).pathname).toLowerCase();
+
+  return extension || undefined;
+}
+
+function extensionFromRemoteUrl(url: string | undefined) {
+  return isRemoteHttpUrl(url) ? extensionFromUrl(url) : undefined;
+}
+
+function extensionFromPath(path: string | undefined) {
+  const extension = path ? extname(path).toLowerCase() : '';
 
   return extension || undefined;
 }

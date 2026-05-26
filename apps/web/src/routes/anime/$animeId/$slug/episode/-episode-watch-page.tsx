@@ -56,6 +56,7 @@ const SEEK_FEEDBACK_TIMEOUT_MS = 650;
 const PLAYBACK_FEEDBACK_TIMEOUT_MS = 620;
 
 type VideoElementEventHandler = ComponentProps<"video">["onTimeUpdate"];
+type PlaybackSourceType = "local" | "stream";
 
 type SeekFeedback = {
   direction: "backward" | "forward";
@@ -569,6 +570,8 @@ export function EpisodeWatchPanel({
   });
   const [selectedLocalFileId, setSelectedLocalFileId] = useState<string>();
   const [selectedStreamIndex, setSelectedStreamIndex] = useState(0);
+  const [selectedPlaybackSourceType, setSelectedPlaybackSourceType] =
+    useState<PlaybackSourceType>();
   const [episodesPanelOpen, setEpisodesPanelOpen] = useState(false);
   const [playerHeight, setPlayerHeight] = useState<number>();
   const lastProgressSaveRef = useRef(0);
@@ -589,6 +592,19 @@ export function EpisodeWatchPanel({
   );
   const selectedStream =
     playableStreams[selectedStreamIndex] ?? playableStreams[0];
+  const activePlaybackSourceType =
+    selectedPlaybackSourceType ??
+    (localFilesLoading
+      ? undefined
+      : selectedLocalFile
+        ? "local"
+        : selectedStream
+          ? "stream"
+          : undefined);
+  const activeLocalFile =
+    activePlaybackSourceType === "local" ? selectedLocalFile : undefined;
+  const activeStream =
+    activePlaybackSourceType === "stream" ? selectedStream : undefined;
   const episodeDrawerItems = useMemo(
     () => getEpisodeDrawerItems(episodes, episode, routeEpisodeNumber),
     [episodes, episode, routeEpisodeNumber],
@@ -612,19 +628,20 @@ export function EpisodeWatchPanel({
       : "Episode";
   const watchTitle = `${anime.displayTitle} - ${episodeTitle}`;
   const playbackProgressQuery = useQuery({
-    queryKey: ["playback", "progress", selectedLocalFile?.id],
+    queryKey: ["playback", "progress", activeLocalFile?.id],
     queryFn: async () =>
-      selectedLocalFile
+      activeLocalFile
         ? ((await getPlaybackProgress({
-            localMediaFileId: selectedLocalFile.id,
+            localMediaFileId: activeLocalFile.id,
           })) ?? null)
         : null,
-    enabled: Boolean(selectedLocalFile?.id),
+    enabled: Boolean(activeLocalFile?.id),
   });
 
   useEffect(() => {
     setSelectedLocalFileId(undefined);
     setSelectedStreamIndex(0);
+    setSelectedPlaybackSourceType(undefined);
     restoredProgressKeyRef.current = undefined;
   }, [episode?.url]);
 
@@ -655,14 +672,14 @@ export function EpisodeWatchPanel({
       observer.disconnect();
       window.removeEventListener("resize", updatePlayerHeight);
     };
-  }, [episodesPanelOpen, selectedLocalFile?.id, selectedStream?.embedUrl]);
+  }, [activeLocalFile?.id, activeStream?.embedUrl, episodesPanelOpen]);
 
   function saveLocalProgress(
     event: SyntheticEvent<HTMLVideoElement>,
     completed = false,
     force = false,
   ) {
-    if (!selectedLocalFile) {
+    if (!activeLocalFile) {
       return;
     }
 
@@ -679,7 +696,7 @@ export function EpisodeWatchPanel({
         anime,
         completed,
         episode,
-        file: selectedLocalFile,
+        file: activeLocalFile,
         positionSeconds: video.currentTime,
         routeEpisodeNumber,
         durationSeconds: Number.isFinite(video.duration)
@@ -692,12 +709,12 @@ export function EpisodeWatchPanel({
   function restoreLocalProgress(event: SyntheticEvent<HTMLVideoElement>) {
     const progress = playbackProgressQuery.data;
 
-    if (!selectedLocalFile || !progress || progress.completed) {
+    if (!activeLocalFile || !progress || progress.completed) {
       return;
     }
 
     const video = event.currentTarget;
-    const restoreKey = `${selectedLocalFile.id}:${progress.updatedAt}`;
+    const restoreKey = `${activeLocalFile.id}:${progress.updatedAt}`;
 
     if (
       restoredProgressKeyRef.current === restoreKey ||
@@ -725,7 +742,7 @@ export function EpisodeWatchPanel({
             className="mx-auto aspect-video w-full max-w-[min(100%,calc((100svh-12rem)*1.7778))] bg-black"
             ref={playerFrameRef}
           >
-            {selectedLocalFile ? (
+            {activeLocalFile ? (
               <ElysiumVideoPlayer
                 nowPlaying={{
                   episodeNumber: currentEpisodeNumber,
@@ -737,7 +754,7 @@ export function EpisodeWatchPanel({
                   anime.coverImage?.extraLarge ??
                   anime.coverImage?.large
                 }
-                src={getLocalMediaStreamUrl(selectedLocalFile.id)}
+                src={getLocalMediaStreamUrl(activeLocalFile.id)}
                 onEnded={(event) => saveLocalProgress(event, true, true)}
                 onLoadedMetadata={restoreLocalProgress}
                 onPause={(event) => saveLocalProgress(event, false, true)}
@@ -747,14 +764,14 @@ export function EpisodeWatchPanel({
               <div className="flex h-full w-full items-center justify-center bg-muted/20">
                 <Skeleton className="h-full w-full rounded-none bg-muted/20" />
               </div>
-            ) : selectedStream ? (
+            ) : activeStream ? (
               <iframe
                 allow="fullscreen; encrypted-media; picture-in-picture"
                 allowFullScreen
                 className="h-full w-full border-0"
                 referrerPolicy="no-referrer-when-downgrade"
-                src={selectedStream.embedUrl}
-                title={`${anime.displayTitle} ${selectedStream.providerLabel}`}
+                src={activeStream.embedUrl}
+                title={`${anime.displayTitle} ${activeStream.providerLabel}`}
               />
             ) : streamingOptionsLoading ? (
               <div className="flex h-full w-full items-center justify-center bg-muted/20">
@@ -797,57 +814,59 @@ export function EpisodeWatchPanel({
           </Button>
         </div>
 
-        {selectedLocalFile ? (
-          <>
-            {localFiles.length > 1 ? (
-              <div className="flex flex-wrap gap-2">
-                {localFiles.map((file) => (
-                  <Button
-                    key={file.id}
-                    size="sm"
-                    type="button"
-                    variant={
-                      file.id === selectedLocalFile.id ? "default" : "outline"
-                    }
-                    onClick={() => setSelectedLocalFileId(file.id)}
-                  >
-                    {file.quality}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-          </>
-        ) : selectedStream ? (
+        {localFiles.length || playableStreams.length ? (
           <>
             <div className="flex flex-wrap gap-2">
+              {localFiles.map((file) => (
+                <Button
+                  key={file.id}
+                  size="sm"
+                  type="button"
+                  variant={
+                    activeLocalFile?.id === file.id ? "default" : "outline"
+                  }
+                  onClick={() => {
+                    setSelectedLocalFileId(file.id);
+                    setSelectedPlaybackSourceType("local");
+                  }}
+                >
+                  {localFiles.length > 1 ? `Local ${file.quality}` : "Local"}
+                </Button>
+              ))}
               {playableStreams.map((option, index) => (
                 <Button
                   key={`${option.providerLabel}-${option.embedUrl}`}
                   size="sm"
                   type="button"
                   variant={
-                    index === selectedStreamIndex ? "default" : "outline"
+                    activePlaybackSourceType === "stream" &&
+                    index === selectedStreamIndex
+                      ? "default"
+                      : "outline"
                   }
-                  onClick={() => setSelectedStreamIndex(index)}
+                  onClick={() => {
+                    setSelectedStreamIndex(index);
+                    setSelectedPlaybackSourceType("stream");
+                  }}
                 >
                   {option.providerLabel}
                 </Button>
               ))}
             </div>
-            {blockedStreams.length ? (
-              <div className="flex flex-wrap gap-2">
-                {blockedStreams.map((option) => (
-                  <Badge
-                    key={`${option.providerLabel}-${option.embedUrl}`}
-                    variant="outline"
-                  >
-                    {option.providerLabel}:{" "}
-                    {option.unsupportedReason ?? "Unavailable"}
-                  </Badge>
-                ))}
-              </div>
-            ) : null}
           </>
+        ) : null}
+        {blockedStreams.length ? (
+          <div className="flex flex-wrap gap-2">
+            {blockedStreams.map((option) => (
+              <Badge
+                key={`${option.providerLabel}-${option.embedUrl}`}
+                variant="outline"
+              >
+                {option.providerLabel}:{" "}
+                {option.unsupportedReason ?? "Unavailable"}
+              </Badge>
+            ))}
+          </div>
         ) : null}
       </div>
     </section>

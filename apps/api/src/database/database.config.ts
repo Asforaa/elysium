@@ -9,7 +9,7 @@ export function getDatabaseUrl(): string {
   );
 }
 
-function getEnvValue(key: string) {
+export function getEnvValue(key: string) {
   if (process.env[key]) {
     return process.env[key];
   }
