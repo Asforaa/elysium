@@ -157,6 +157,8 @@ Homeserver media:
   - `bun run --filter @elysium/api library:match-anilist`
   - It is dry-run/read-only for media files.
   - It writes private reports under ignored `/docs/match-reports`.
+  - It has a manual hint layer for legacy/local titles that AniList search does not resolve well by itself, including acronym folders such as `NENTSND` and shorthand season folders such as `Xian Wang de Richang Shenghuo S2`.
+  - When a local title is corrected in chat, add the durable alias/expected AniList and MAL IDs to the matcher rather than leaving the fix only in a generated report.
 
 Portless:
 
@@ -187,6 +189,7 @@ Provider smoke tests:
 - Local anime to AniList matcher:
   - `bun run --filter @elysium/api library:match-anilist`
 - This should compare local anime groups with AniList romaji-first metadata and write private reports under ignored `/docs/match-reports`.
+- For the homeserver anime library, the matcher currently expects all `96` local anime groups to resolve high-confidence after the manual hint layer is applied.
 
 Private docs:
 

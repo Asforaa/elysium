@@ -56,7 +56,150 @@ export interface LocalAnimeMatchReport {
   };
 }
 
+interface ManualAniListMatchHint {
+  expectedAniListId?: number;
+  expectedMalId?: number;
+  match: RegExp;
+  queries: string[];
+  titleAliases?: string[];
+}
+
 const DEFAULT_DELAY_MS = 850;
+const MANUAL_MATCH_HINTS: ManualAniListMatchHint[] = [
+  {
+    expectedAniListId: 114121,
+    expectedMalId: 41094,
+    match: /xian wang de richang shenghuo\s+s?1\b/iu,
+    queries: ['Xian Wang De Richang Shenghuo'],
+  },
+  {
+    expectedAniListId: 126357,
+    expectedMalId: 44069,
+    match: /xian wang de richang shenghuo\s+s?2\b/iu,
+    queries: ['Xian Wang De Richang Shenghuo 2'],
+  },
+  {
+    expectedAniListId: 141852,
+    expectedMalId: 50404,
+    match: /xian wang de richang shenghuo\s+s?3\b/iu,
+    queries: ['Xian Wang De Richang Shenghuo 3'],
+  },
+  {
+    expectedAniListId: 20850,
+    expectedMalId: 27899,
+    match: /tokyo\s+ghoul\s+s?2\b/iu,
+    queries: ['Tokyo Ghoul Root A', 'Tokyo Ghoul √A'],
+    titleAliases: ['Tokyo Ghoul Root A', 'Tokyo Ghoul √A'],
+  },
+  {
+    expectedAniListId: 169927,
+    expectedMalId: 56838,
+    match: /one\s+room.*hi(?:\s|-)?atari.*tenshi/iu,
+    queries: [
+      'One Room, Hi Atari Futsuu, Tenshi Tsuki.',
+      'One Room, Hiatari Futsuu, Tenshi-tsuki.',
+    ],
+  },
+  {
+    expectedAniListId: 147864,
+    expectedMalId: 51678,
+    match: /(?:onnichan|onii-?chan)\s+wa\s+oshimai/iu,
+    queries: ['Onii-chan wa Oshimai!'],
+  },
+  {
+    expectedAniListId: 170130,
+    expectedMalId: 56923,
+    match: /lv2\s+kara\s+cheat/iu,
+    queries: [
+      'Lv2 Kara Cheat datta Moto Yuusha Kouho no Mattari Isekai Life',
+      "Chillin' in Another World with Level 2 Super Cheat Powers",
+    ],
+  },
+  {
+    expectedAniListId: 142984,
+    expectedMalId: 50631,
+    match: /komi-?san.*(?:comyushou|komyushou).*s?2\b/iu,
+    queries: [
+      'Komi-san wa, Komyushou desu. 2',
+      "Komi Can't Communicate Part 2",
+    ],
+  },
+  {
+    expectedAniListId: 146210,
+    expectedMalId: 51213,
+    match: /kinsou\s+no\s+vermeil/iu,
+    queries: [
+      'Kinsou no Vermeil: Gakeppuchi Majutsushi wa Saikyou no Yakusai to Mahou Sekai wo Tsuki Susumu',
+      'Vermeil in Gold',
+    ],
+  },
+  {
+    expectedAniListId: 168138,
+    expectedMalId: 56230,
+    match: /(?:jiisan|jii-?san).*baasan|baa-?san.*wakagaeru/iu,
+    queries: [
+      'Jii-san Baa-san Wakagaeru',
+      'Grandpa and Grandma Turn Young Again',
+    ],
+  },
+  {
+    expectedAniListId: 101166,
+    expectedMalId: 37348,
+    match: /(?:dungeon.*movie|orion\s+no\s+ya|arrow\s+of\s+the\s+orion)/iu,
+    queries: [
+      'Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka: Orion no Ya',
+      'Is It Wrong to Try to Pick Up Girls in a Dungeon?: Arrow of the Orion',
+    ],
+  },
+  {
+    expectedAniListId: 142193,
+    expectedMalId: 50481,
+    match: /eiyuu-?ou.*bu\s+wo\s+kiwameru|hero-king.*squire/iu,
+    queries: [
+      'Eiyuu-ou, Bu wo Kiwameru Tame Tenseisu: Soshite, Sekai Saikyou no Minarai Kishi',
+      'Reborn to Master the Blade: From Hero-King to Extraordinary Squire',
+    ],
+  },
+  {
+    expectedAniListId: 142769,
+    expectedMalId: 50593,
+    match: /^nentsnd$/iu,
+    queries: [
+      'Natsu e no Tunnel, Sayonara no Deguchi',
+      'The Tunnel to Summer, the Exit of Goodbyes',
+    ],
+  },
+  {
+    expectedAniListId: 156111,
+    expectedMalId: 54846,
+    match: /(?:the\s+girl\s+downstairs|aishang\s+ta\s+de\s+liyou)/iu,
+    queries: ['Aishang Ta De Liyou', 'The Girl Downstairs'],
+  },
+  {
+    expectedAniListId: 21861,
+    expectedMalId: 33506,
+    match: /ao\s+no\s+exorcist\s+season\s+2/iu,
+    queries: ['Ao no Exorcist: Kyoto Fujouou-hen', 'Blue Exorcist Kyoto Saga'],
+  },
+  {
+    expectedAniListId: 101291,
+    expectedMalId: 37450,
+    match: /bunny\s+girl\s+senpai/iu,
+    queries: ['Seishun Buta Yarou wa Bunny Girl Senpai no Yume wo Minai'],
+  },
+  {
+    expectedAniListId: 1943,
+    expectedMalId: 1943,
+    match: /^paprika(?:\s*\(2006\))?$/iu,
+    queries: ['Paprika'],
+  },
+  {
+    expectedAniListId: 124845,
+    expectedMalId: 43299,
+    match: /wonder\s+egg/iu,
+    queries: ['Wonder Egg Priority'],
+  },
+];
 
 export async function matchLocalAnimeToAniList({
   delayMs = DEFAULT_DELAY_MS,
@@ -247,12 +390,13 @@ function toMatchCandidate(
   group: LocalAnimeGroup,
   result: AnimeMetadataSearchResult,
 ): AniListMatchCandidate {
+  const manualHints = manualMatchHintsForTitle(group.localTitle);
   const canonicalTitle =
     result.title.romaji ?? result.title.english ?? result.title.userPreferred;
-  const titleScore = bestTitleScore(group.localTitle, result);
+  const titleScore = bestTitleScore(group.localTitle, result, manualHints);
   const formatScore = formatCompatibilityScore(group.category, result.format);
   const episodeScore = episodeCompatibilityScore(group, result);
-  const sequence = sequenceCompatibility(group, result);
+  const sequence = sequenceCompatibility(group, result, manualHints);
   let score = clamp(
     titleScore * 0.72 +
       formatScore * 0.08 +
@@ -260,7 +404,21 @@ function toMatchCandidate(
       sequence.score * 0.12,
   );
 
-  if (sequence.localSeason && sequence.localSeason > 1 && !sequence.hasCandidateSeason) {
+  if (manualHints.length) {
+    if (manualHints.some((hint) => matchesExpectedHint(result, hint))) {
+      score = Math.max(score, 0.96);
+    } else if (
+      manualHints.some((hint) => hint.expectedAniListId || hint.expectedMalId)
+    ) {
+      score *= 0.55;
+    }
+  }
+
+  if (
+    sequence.localSeason &&
+    sequence.localSeason > 1 &&
+    !sequence.hasCandidateSeason
+  ) {
     score *= 0.72;
   }
 
@@ -284,8 +442,16 @@ function toMatchCandidate(
 function bestTitleScore(
   localTitle: string,
   result: AnimeMetadataSearchResult,
+  manualHints: ManualAniListMatchHint[] = [],
 ) {
-  const names = [
+  const localNames = [
+    localTitle,
+    ...manualHints.flatMap((hint) => [
+      ...hint.queries,
+      ...(hint.titleAliases ?? []),
+    ]),
+  ].filter((value): value is string => Boolean(value));
+  const candidateNames = [
     result.title.romaji,
     result.title.english,
     result.title.userPreferred,
@@ -293,10 +459,15 @@ function bestTitleScore(
   ].filter((value): value is string => Boolean(value));
 
   return Math.max(
-    ...names.map((name) =>
-      Math.max(
-        diceCoefficient(normalizeForCompare(localTitle), normalizeForCompare(name)),
-        tokenScore(localTitle, name),
+    ...localNames.flatMap((localName) =>
+      candidateNames.map((candidateName) =>
+        Math.max(
+          diceCoefficient(
+            normalizeForCompare(localName),
+            normalizeForCompare(candidateName),
+          ),
+          tokenScore(localName, candidateName),
+        ),
       ),
     ),
     0,
@@ -315,7 +486,12 @@ function formatCompatibilityScore(
     return format === 'MOVIE' ? 1 : 0;
   }
 
-  if (format === 'TV' || format === 'ONA' || format === 'OVA' || format === 'SPECIAL') {
+  if (
+    format === 'TV' ||
+    format === 'ONA' ||
+    format === 'OVA' ||
+    format === 'SPECIAL'
+  ) {
     return 1;
   }
 
@@ -437,28 +613,59 @@ function buildReviewLines(match: LocalAnimeMatch) {
 }
 
 function toAniListSearchQueries(localTitle: string) {
+  const manualQueries = manualMatchHintsForTitle(localTitle).flatMap(
+    (hint) => hint.queries,
+  );
   const primary = localTitle
     .replace(/\(\s*\d+(?:[.\s]\d+)?\s*\)/gu, ' ')
     .replace(/\bseason\s*0?1\b/giu, '')
+    .replace(/\bs0?1\b/giu, '')
+    .replace(/\bs0?([2-9])\b/giu, ' $1')
     .replace(/\bpart\s*\d+\b/giu, '')
     .replace(/\s+/gu, ' ')
     .trim();
   const noSeason = localTitle
     .replace(/\(\s*\d+(?:[.\s]\d+)?\s*\)/gu, ' ')
     .replace(/\bseason\s*\d+\b/giu, '')
+    .replace(/\bs\d{1,2}\b/giu, '')
     .replace(/\bpart\s*\d+\b/giu, '')
     .replace(/\bmovie\b/giu, '')
     .replace(/\s+/gu, ' ')
     .trim();
 
-  return Array.from(new Set([primary, noSeason, localTitle])).filter(Boolean);
+  return Array.from(
+    new Set([...manualQueries, primary, noSeason, localTitle]),
+  ).filter(Boolean);
+}
+
+function manualMatchHintsForTitle(localTitle: string) {
+  return MANUAL_MATCH_HINTS.filter((hint) => hint.match.test(localTitle));
+}
+
+function matchesExpectedHint(
+  result: AnimeMetadataSearchResult,
+  hint: ManualAniListMatchHint,
+) {
+  return (
+    result.id === hint.expectedAniListId ||
+    (hint.expectedMalId !== undefined && result.idMal === hint.expectedMalId)
+  );
 }
 
 function sequenceCompatibility(
   group: LocalAnimeGroup,
   result: AnimeMetadataSearchResult,
+  manualHints: ManualAniListMatchHint[] = [],
 ) {
   const localSeason = parseSequenceNumber(group.localTitle, 'season');
+
+  if (manualHints.some((hint) => matchesExpectedHint(result, hint))) {
+    return {
+      hasCandidateSeason: true,
+      localSeason,
+      score: 1,
+    };
+  }
 
   if (!localSeason) {
     return {
@@ -550,7 +757,9 @@ function normalizeForCompare(value: string) {
 }
 
 function tokenScore(first: string, second: string) {
-  const firstTokens = new Set(normalizeForCompare(first).split(' ').filter(Boolean));
+  const firstTokens = new Set(
+    normalizeForCompare(first).split(' ').filter(Boolean),
+  );
   const secondTokens = new Set(
     normalizeForCompare(second).split(' ').filter(Boolean),
   );
