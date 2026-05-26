@@ -56,7 +56,11 @@ export type AnimeMetadataSearchSort =
   | "date-added"
   | "release-date";
 
+export type AnimeMetadataSeason = "WINTER" | "SPRING" | "SUMMER" | "FALL";
+
 export interface AnimeMetadataSearchOptions {
+  season?: AnimeMetadataSeason;
+  seasonYear?: number;
   sort?: AnimeMetadataSearchSort;
 }
 

@@ -140,9 +140,9 @@ const ANILIST_SEARCH_SORTS: Record<AnimeMetadataSearchSort, string[]> = {
 };
 
 const SEARCH_QUERY = `
-  query ElysiumAnimeSearch($search: String, $perPage: Int!, $sort: [MediaSort]) {
+  query ElysiumAnimeSearch($search: String, $perPage: Int!, $season: MediaSeason, $seasonYear: Int, $sort: [MediaSort]) {
     Page(page: 1, perPage: $perPage) {
-      media(search: $search, type: ANIME, sort: $sort) {
+      media(search: $search, type: ANIME, season: $season, seasonYear: $seasonYear, sort: $sort) {
         id
         idMal
         type
@@ -346,6 +346,8 @@ export class AniListMetadataAdapter implements MetadataProviderAdapter {
     }>(SEARCH_QUERY, {
       search: query.trim() || null,
       perPage: 12,
+      season: options.season ?? null,
+      seasonYear: options.seasonYear ?? null,
       sort: ANILIST_SEARCH_SORTS[options.sort ?? 'popularity'],
     });
 

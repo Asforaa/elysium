@@ -40,6 +40,7 @@ import {
 import { useTheme } from 'next-themes';
 import type {
   AnimeMetadataDetails,
+  AnimeMetadataSeason,
   AnimeMetadataSearchResult,
   AnimeMetadataSearchSort,
   AnimeRelation,
@@ -183,6 +184,7 @@ const LIBRARY_NAV_ITEMS: SidebarNavItem[] = [
   { title: 'Downloads', icon: Download, path: '/downloads' },
   { title: 'My Account', icon: User, path: '/account' },
 ];
+const HOME_NEW_POPULAR_TITLE = 'New & Popular This Season';
 
 type SidebarItemTitle =
   | 'Home'
@@ -233,7 +235,11 @@ type DownloadQualityGroup = {
 function App({
   animeSearchQuery: routeAnimeSearchQuery = '',
   animeSearchRoute = false,
+  animeSearchSeason: routeAnimeSearchSeason,
+  animeSearchSeasonYear: routeAnimeSearchSeasonYear,
   animeSearchSort: routeAnimeSearchSort = DEFAULT_ANIME_SEARCH_SORT,
+  animeSearchTitle: routeAnimeSearchTitle,
+  currentlyWatchingRoute = false,
   downloadsRoute = false,
   placeholderRoute,
   routeAnimeId,
@@ -241,7 +247,11 @@ function App({
 }: {
   animeSearchQuery?: string;
   animeSearchRoute?: boolean;
+  animeSearchSeason?: AnimeMetadataSeason;
+  animeSearchSeasonYear?: number;
   animeSearchSort?: AnimeMetadataSearchSort;
+  animeSearchTitle?: string;
+  currentlyWatchingRoute?: boolean;
   downloadsRoute?: boolean;
   placeholderRoute?: SidebarItemTitle;
   routeAnimeId?: number;
@@ -258,10 +268,12 @@ function App({
   const [focusedImage, setFocusedImage] = useState<FocusedImage | null>(null);
   const selectedAnimeId = Number.isFinite(routeAnimeId) ? routeAnimeId : undefined;
   const trimmedAnimeQuery = animeQuery.trim();
-  const showingAnimeSearch = trimmedAnimeQuery.length > 0;
+  const showingAnimeSearch = animeSearchRoute || trimmedAnimeQuery.length > 0;
   const showingEpisodeRoute = Boolean(routeEpisodeNumber);
   const [sidebarOpen, setSidebarOpen] = useState(!showingEpisodeRoute);
+  const currentAnimeSeason = useMemo(() => getCurrentAnimeSeason(), []);
   const showingHomeRoute =
+    !currentlyWatchingRoute &&
     !downloadsRoute &&
     !placeholderRoute &&
     !showingAnimeSearch &&
@@ -298,8 +310,21 @@ function App({
   );
 
   const animeMetadataSearchQuery = useQuery({
-    queryKey: ['metadata', 'anilist', 'search', trimmedAnimeQuery, animeSearchSort],
-    queryFn: () => searchAnimeMetadata(trimmedAnimeQuery, animeSearchSort),
+    queryKey: [
+      'metadata',
+      'anilist',
+      'search',
+      trimmedAnimeQuery,
+      animeSearchSort,
+      routeAnimeSearchSeason,
+      routeAnimeSearchSeasonYear,
+    ],
+    queryFn: () =>
+      searchAnimeMetadata(trimmedAnimeQuery, {
+        season: routeAnimeSearchSeason,
+        seasonYear: routeAnimeSearchSeasonYear,
+        sort: animeSearchSort,
+      }),
     enabled: showingAnimeSearch,
     staleTime: 60_000,
   });
@@ -416,8 +441,20 @@ function App({
   const continueWatching =
     continueWatchingQuery.data ?? EMPTY_PLAYBACK_PROGRESS;
   const newPopularQuery = useQuery({
-    queryKey: ['metadata', 'anilist', 'home', 'new-popular'],
-    queryFn: () => searchAnimeMetadata('', 'popularity'),
+    queryKey: [
+      'metadata',
+      'anilist',
+      'home',
+      'new-popular',
+      currentAnimeSeason.season,
+      currentAnimeSeason.year,
+    ],
+    queryFn: () =>
+      searchAnimeMetadata('', {
+        season: currentAnimeSeason.season,
+        seasonYear: currentAnimeSeason.year,
+        sort: 'popularity',
+      }),
     enabled: showingHomeRoute,
     staleTime: 5 * 60_000,
   });
@@ -472,31 +509,50 @@ function App({
   function handleAnimeQueryChange(value: string) {
     setAnimeSearchFocusTick((tick) => tick + 1);
     setAnimeQuery(value);
-    navigateToAnimeSearch(value, animeSearchSort);
+    navigateToAnimeSearch(value, animeSearchSort, {
+      replace: animeSearchRoute,
+      season: routeAnimeSearchSeason,
+      seasonYear: routeAnimeSearchSeasonYear,
+      title: routeAnimeSearchTitle,
+    });
   }
 
   function handleAnimeSearchSortChange(sort: AnimeMetadataSearchSort) {
     setAnimeSearchSort(sort);
 
-    if (trimmedAnimeQuery) {
-      navigateToAnimeSearch(trimmedAnimeQuery, sort, true);
+    if (showingAnimeSearch) {
+      navigateToAnimeSearch(trimmedAnimeQuery, sort, {
+        replace: true,
+        season: routeAnimeSearchSeason,
+        seasonYear: routeAnimeSearchSeasonYear,
+        title: routeAnimeSearchTitle,
+      });
     }
   }
 
   function navigateToAnimeSearch(
     query: string,
     sort: AnimeMetadataSearchSort,
-    replace = animeSearchRoute,
+    options: {
+      replace?: boolean;
+      season?: AnimeMetadataSeason;
+      seasonYear?: number;
+      title?: string;
+    } = {},
   ) {
     const nextQuery = query.trim();
+    const nextSearch = {
+      search: nextQuery,
+      season: options.season,
+      sort: toAnimeSearchSortUrlValue(sort),
+      title: options.title,
+      year: options.seasonYear,
+    };
 
     if (!nextQuery) {
       void navigate({
-        replace: true,
-        search: {
-          search: '',
-          sort: toAnimeSearchSortUrlValue(sort),
-        },
+        replace: options.replace ?? true,
+        search: nextSearch,
         to: '/search/anime',
       });
 
@@ -504,13 +560,23 @@ function App({
     }
 
     void navigate({
-      replace,
-      search: {
-        search: nextQuery,
-        sort: toAnimeSearchSortUrlValue(sort),
-      },
+      replace: options.replace ?? animeSearchRoute,
+      search: nextSearch,
       to: '/search/anime',
     });
+  }
+
+  function handleNewPopularOpen() {
+    navigateToAnimeSearch('', 'popularity', {
+      replace: false,
+      season: currentAnimeSeason.season,
+      seasonYear: currentAnimeSeason.year,
+      title: HOME_NEW_POPULAR_TITLE,
+    });
+  }
+
+  function handleContinueWatchingOpen() {
+    void navigate({ to: '/currently-watching' });
   }
 
   function handleAnimeSelect(item: AnimeMetadataSearchResult) {
@@ -661,6 +727,7 @@ function App({
                 <AppBreadcrumbs
                   anime={animeDetails}
                   animeSearchRoute={animeSearchRoute || showingAnimeSearch}
+                  currentlyWatchingRoute={currentlyWatchingRoute}
                   downloadsRoute={downloadsRoute}
                   placeholderRoute={placeholderRoute}
                   routeEpisodeNumber={routeEpisodeNumber}
@@ -712,10 +779,25 @@ function App({
               <EmptyRoutePage title={placeholderRoute} />
             ) : null}
 
-            {!downloadsRoute && !placeholderRoute && showingAnimeSearch ? (
+            {!downloadsRoute && currentlyWatchingRoute ? (
+              <CurrentlyWatchingPage
+                files={localMediaFiles}
+                items={continueWatching}
+                loading={continueWatchingQuery.isFetching}
+                onResume={handleContinueWatchingSelect}
+              />
+            ) : null}
+
+            {!downloadsRoute &&
+            !currentlyWatchingRoute &&
+            !placeholderRoute &&
+            showingAnimeSearch ? (
               <AnimeSearchResults
                 loading={animeMetadataSearchQuery.isFetching}
                 results={animeResults}
+                routeTitle={routeAnimeSearchTitle}
+                season={routeAnimeSearchSeason}
+                seasonYear={routeAnimeSearchSeasonYear}
                 selectedId={selectedAnimeId}
                 sort={animeSearchSort}
                 error={animeMetadataSearchQuery.error}
@@ -725,6 +807,7 @@ function App({
             ) : null}
 
             {!downloadsRoute &&
+            !currentlyWatchingRoute &&
             !placeholderRoute &&
             !showingEpisodeRoute &&
             !showingAnimeSearch &&
@@ -737,6 +820,7 @@ function App({
             ) : null}
 
             {!downloadsRoute &&
+            !currentlyWatchingRoute &&
             !placeholderRoute &&
             !showingAnimeSearch &&
             animeDetails &&
@@ -755,6 +839,7 @@ function App({
             ) : null}
 
             {!downloadsRoute &&
+            !currentlyWatchingRoute &&
             !placeholderRoute &&
             !showingEpisodeRoute &&
             !showingAnimeSearch &&
@@ -790,6 +875,7 @@ function App({
             ) : null}
 
             {!downloadsRoute &&
+            !currentlyWatchingRoute &&
             !placeholderRoute &&
             !showingEpisodeRoute &&
             !showingAnimeSearch &&
@@ -802,6 +888,7 @@ function App({
             ) : null}
 
             {!downloadsRoute &&
+            !currentlyWatchingRoute &&
             !placeholderRoute &&
             showingEpisodeRoute &&
             !showingAnimeSearch &&
@@ -825,6 +912,7 @@ function App({
             ) : null}
 
             {!downloadsRoute &&
+            !currentlyWatchingRoute &&
             !placeholderRoute &&
             !showingAnimeSearch &&
             showingHomeRoute ? (
@@ -836,6 +924,8 @@ function App({
                 newPopularLoading={newPopularQuery.isFetching}
                 continueWatchingLoading={continueWatchingQuery.isFetching}
                 onAnimeSelect={handleAnimeSelect}
+                onContinueWatchingOpen={handleContinueWatchingOpen}
+                onNewPopularOpen={handleNewPopularOpen}
                 onResume={handleContinueWatchingSelect}
               />
             ) : null}
@@ -852,6 +942,7 @@ function App({
 function AppBreadcrumbs({
   anime,
   animeSearchRoute,
+  currentlyWatchingRoute,
   downloadsRoute,
   placeholderRoute,
   routeEpisodeNumber,
@@ -860,6 +951,7 @@ function AppBreadcrumbs({
 }: {
   anime?: AnimeMetadataDetails;
   animeSearchRoute: boolean;
+  currentlyWatchingRoute: boolean;
   downloadsRoute: boolean;
   placeholderRoute?: SidebarItemTitle;
   routeEpisodeNumber?: string;
@@ -882,13 +974,22 @@ function AppBreadcrumbs({
           </BreadcrumbItem>
         ) : null}
 
-        {!downloadsRoute && placeholderRoute ? (
+        {currentlyWatchingRoute ? (
+          <BreadcrumbItem className="min-w-0">
+            <BreadcrumbPage className="truncate">Currently Watching</BreadcrumbPage>
+          </BreadcrumbItem>
+        ) : null}
+
+        {!downloadsRoute && !currentlyWatchingRoute && placeholderRoute ? (
           <BreadcrumbItem className="min-w-0">
             <BreadcrumbPage className="truncate">{placeholderRoute}</BreadcrumbPage>
           </BreadcrumbItem>
         ) : null}
 
-        {!downloadsRoute && !placeholderRoute && animeSearchRoute ? (
+        {!downloadsRoute &&
+        !currentlyWatchingRoute &&
+        !placeholderRoute &&
+        animeSearchRoute ? (
           <>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
@@ -902,7 +1003,11 @@ function AppBreadcrumbs({
           </>
         ) : null}
 
-        {!downloadsRoute && !placeholderRoute && !animeSearchRoute && anime ? (
+        {!downloadsRoute &&
+        !currentlyWatchingRoute &&
+        !placeholderRoute &&
+        !animeSearchRoute &&
+        anime ? (
           <>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
@@ -939,6 +1044,7 @@ function AppBreadcrumbs({
         ) : null}
 
         {!downloadsRoute &&
+        !currentlyWatchingRoute &&
         !placeholderRoute &&
         !animeSearchRoute &&
         !anime &&
@@ -957,6 +1063,7 @@ function AppBreadcrumbs({
         ) : null}
 
         {!downloadsRoute &&
+        !currentlyWatchingRoute &&
         !placeholderRoute &&
         !animeSearchRoute &&
         !selectedAnimeId &&
@@ -1036,6 +1143,9 @@ function AnimeSearchResults({
   error,
   loading,
   results,
+  routeTitle,
+  season,
+  seasonYear,
   selectedId,
   sort,
   onSortChange,
@@ -1044,6 +1154,9 @@ function AnimeSearchResults({
   error: Error | null;
   loading: boolean;
   results: AnimeMetadataSearchResult[];
+  routeTitle?: string;
+  season?: AnimeMetadataSeason;
+  seasonYear?: number;
   selectedId?: number;
   sort: AnimeMetadataSearchSort;
   onSortChange: (sort: AnimeMetadataSearchSort) => void;
@@ -1052,9 +1165,30 @@ function AnimeSearchResults({
   const selectedSort =
     ANIME_SEARCH_SORT_OPTIONS.find((option) => option.id === sort) ??
     ANIME_SEARCH_SORT_OPTIONS[1];
+  const filterValues = SEARCH_FILTERS.map((filter) => {
+    if (filter.label === 'Year' && seasonYear) {
+      return { ...filter, value: String(seasonYear) };
+    }
+
+    if (filter.label === 'Season' && season) {
+      return { ...filter, value: formatAnimeSeason(season) };
+    }
+
+    return filter;
+  });
+  const title =
+    routeTitle ??
+    (season && seasonYear
+      ? `${formatAnimeSeason(season)} ${seasonYear} Anime`
+      : undefined);
+  const activeFilters = [
+    seasonYear ? String(seasonYear) : undefined,
+    season ? formatAnimeSeason(season) : undefined,
+  ].filter((value): value is string => Boolean(value));
 
   return (
     <section className="space-y-6 py-2">
+      {title ? <h1 className="text-3xl font-semibold">{title}</h1> : null}
       <Dialog>
         <div className="flex justify-end">
           <DialogTrigger asChild>
@@ -1074,7 +1208,7 @@ function AnimeSearchResults({
             <DialogTitle>Filters</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {SEARCH_FILTERS.map((filter) => (
+            {filterValues.map((filter) => (
               <div className="space-y-2" key={filter.label}>
                 <p className="text-sm font-medium">{filter.label}</p>
                 <Button
@@ -1119,6 +1253,14 @@ function AnimeSearchResults({
           </div>
         </DialogContent>
       </Dialog>
+
+      {activeFilters.length ? (
+        <div className="flex flex-wrap gap-2">
+          {activeFilters.map((filter) => (
+            <Badge key={filter}>{filter}</Badge>
+          ))}
+        </div>
+      ) : null}
 
       {loading ? (
         <AnimeSearchSkeletonGrid />
@@ -3288,6 +3430,8 @@ function HomePage({
   newPopularLoading,
   continueWatchingLoading,
   onAnimeSelect,
+  onContinueWatchingOpen,
+  onNewPopularOpen,
   onResume,
 }: {
   continueWatching: PlaybackProgress[];
@@ -3297,6 +3441,8 @@ function HomePage({
   newPopularLoading: boolean;
   continueWatchingLoading: boolean;
   onAnimeSelect: (item: AnimeMetadataSearchResult) => void;
+  onContinueWatchingOpen: () => void;
+  onNewPopularOpen: () => void;
   onResume: (progress: PlaybackProgress) => void;
 }) {
   const fileById = useMemo(() => {
@@ -3319,19 +3465,95 @@ function HomePage({
         fileById={fileById}
         items={visibleContinueWatching}
         loading={continueWatchingLoading}
+        onOpen={onContinueWatchingOpen}
         onResume={onResume}
       />
       <HomeNewPopularSection
         error={newPopularError}
         items={newPopular}
         loading={newPopularLoading}
+        onOpen={onNewPopularOpen}
         onSelect={onAnimeSelect}
       />
     </div>
   );
 }
 
-function HomeSectionTitle({ title }: { title: string }) {
+function CurrentlyWatchingPage({
+  files,
+  items,
+  loading,
+  onResume,
+}: {
+  files: LocalMediaFile[];
+  items: PlaybackProgress[];
+  loading: boolean;
+  onResume: (progress: PlaybackProgress) => void;
+}) {
+  const fileById = useMemo(() => {
+    const map = new Map<string, LocalMediaFile>();
+
+    for (const file of files) {
+      map.set(file.id, file);
+    }
+
+    return map;
+  }, [files]);
+  const visibleItems = items.filter((item) => !item.completed);
+
+  return (
+    <section className="space-y-6">
+      <h1 className="text-3xl font-semibold">Currently Watching</h1>
+      {loading && !visibleItems.length ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }, (_, index) => (
+            <Skeleton className="h-52 rounded-lg" key={index} />
+          ))}
+        </div>
+      ) : null}
+      {visibleItems.length ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visibleItems.map((progress) => (
+            <HomeContinueWatchingCard
+              className="w-full"
+              file={findLocalFileForProgress(progress, fileById)}
+              key={progress.id}
+              progress={progress}
+              onResume={onResume}
+            />
+          ))}
+        </div>
+      ) : null}
+      {!loading && !visibleItems.length ? (
+        <p className="text-sm text-muted-foreground">
+          Partially watched episodes will appear here after local playback starts.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function HomeSectionTitle({
+  title,
+  onOpen,
+}: {
+  title: string;
+  onOpen?: () => void;
+}) {
+  if (onOpen) {
+    return (
+      <Button
+        className="-ml-3 h-auto gap-2 px-3 py-1 text-lg font-semibold"
+        type="button"
+        variant="ghost"
+        onClick={onOpen}
+      >
+        {title}
+        <ChevronDown className="size-4 -rotate-90 text-muted-foreground" />
+      </Button>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2">
       <h2 className="text-lg font-semibold">{title}</h2>
@@ -3344,16 +3566,18 @@ function HomeContinueWatchingSection({
   fileById,
   items,
   loading,
+  onOpen,
   onResume,
 }: {
   fileById: Map<string, LocalMediaFile>;
   items: PlaybackProgress[];
   loading: boolean;
+  onOpen?: () => void;
   onResume: (progress: PlaybackProgress) => void;
 }) {
   return (
     <section className="space-y-4">
-      <HomeSectionTitle title="Continue Watching" />
+      <HomeSectionTitle title="Continue Watching" onOpen={onOpen} />
       {loading && !items.length ? (
         <div className="flex gap-4 overflow-hidden">
           {Array.from({ length: 3 }, (_, index) => (
@@ -3386,10 +3610,12 @@ function HomeContinueWatchingSection({
 }
 
 function HomeContinueWatchingCard({
+  className,
   file,
   progress,
   onResume,
 }: {
+  className?: string;
   file: LocalMediaFile | undefined;
   progress: PlaybackProgress;
   onResume: (progress: PlaybackProgress) => void;
@@ -3406,7 +3632,12 @@ function HomeContinueWatchingCard({
   const disabled = !file?.metadataId && !progress.metadataId;
 
   return (
-    <article className="group/continue relative h-52 w-[min(82vw,30rem)] shrink-0 overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
+    <article
+      className={cn(
+        'group/continue relative h-52 w-[min(82vw,30rem)] shrink-0 overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm',
+        className,
+      )}
+    >
       {imageUrl ? (
         <img
           alt=""
@@ -3468,16 +3699,18 @@ function HomeNewPopularSection({
   error,
   items,
   loading,
+  onOpen,
   onSelect,
 }: {
   error: Error | null;
   items: AnimeMetadataSearchResult[];
   loading: boolean;
+  onOpen?: () => void;
   onSelect: (item: AnimeMetadataSearchResult) => void;
 }) {
   return (
     <section className="space-y-4">
-      <HomeSectionTitle title="New & Popular" />
+      <HomeSectionTitle title="New & Popular" onOpen={onOpen} />
       {loading ? (
         <div className="grid grid-flow-col grid-rows-2 gap-x-5 gap-y-6 overflow-hidden">
           {Array.from({ length: 12 }, (_, index) => (
@@ -3953,6 +4186,32 @@ function formatToken(value?: string) {
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function formatAnimeSeason(season: AnimeMetadataSeason) {
+  return formatToken(season) ?? season;
+}
+
+function getCurrentAnimeSeason(date = new Date()): {
+  season: AnimeMetadataSeason;
+  year: number;
+} {
+  const month = date.getMonth();
+  const year = date.getFullYear();
+
+  if (month <= 2) {
+    return { season: 'WINTER', year };
+  }
+
+  if (month <= 5) {
+    return { season: 'SPRING', year };
+  }
+
+  if (month <= 8) {
+    return { season: 'SUMMER', year };
+  }
+
+  return { season: 'FALL', year };
 }
 
 function getAnimeMetadataLine(anime: AnimeMetadataSearchResult | AnimeMetadataDetails) {

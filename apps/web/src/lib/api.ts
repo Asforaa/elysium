@@ -1,7 +1,8 @@
 import type {
   AnimeMetadataDetails,
-  AnimeMetadataSearchSort,
+  AnimeMetadataSearchOptions,
   AnimeMetadataSearchResult,
+  AnimeMetadataSearchSort,
   DownloadedAnime,
   DownloadMediaContext,
   DownloadJob,
@@ -60,9 +61,22 @@ export async function listProviders(): Promise<SourceProvider[]> {
 
 export async function searchAnimeMetadata(
   query: string,
-  sort: AnimeMetadataSearchSort = 'popularity',
+  options: AnimeMetadataSearchOptions | AnimeMetadataSearchSort = 'popularity',
 ): Promise<AnimeMetadataSearchResult[]> {
-  const params = new URLSearchParams({ q: query, sort });
+  const normalizedOptions =
+    typeof options === 'string' ? { sort: options } : options;
+  const params = new URLSearchParams({
+    q: query,
+    sort: normalizedOptions.sort ?? 'popularity',
+  });
+
+  if (normalizedOptions.season) {
+    params.set('season', normalizedOptions.season);
+  }
+
+  if (normalizedOptions.seasonYear) {
+    params.set('year', String(normalizedOptions.seasonYear));
+  }
 
   return getJson(`/metadata/anilist/search?${params.toString()}`);
 }

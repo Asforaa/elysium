@@ -16,6 +16,7 @@ import { Route as MoviesRouteImport } from './routes/movies'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as FavouritesRouteImport } from './routes/favourites'
 import { Route as DownloadsRouteImport } from './routes/downloads'
+import { Route as CurrentlyWatchingRouteImport } from './routes/currently-watching'
 import { Route as AnimeRouteImport } from './routes/anime'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
@@ -58,6 +59,11 @@ const FavouritesRoute = FavouritesRouteImport.update({
 const DownloadsRoute = DownloadsRouteImport.update({
   id: '/downloads',
   path: '/downloads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CurrentlyWatchingRoute = CurrentlyWatchingRouteImport.update({
+  id: '/currently-watching',
+  path: '/currently-watching',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnimeRoute = AnimeRouteImport.update({
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/anime': typeof AnimeRouteWithChildren
+  '/currently-watching': typeof CurrentlyWatchingRoute
   '/downloads': typeof DownloadsRoute
   '/favourites': typeof FavouritesRoute
   '/home': typeof HomeRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/currently-watching': typeof CurrentlyWatchingRoute
   '/downloads': typeof DownloadsRoute
   '/favourites': typeof FavouritesRoute
   '/home': typeof HomeRoute
@@ -139,6 +147,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/anime': typeof AnimeRouteWithChildren
+  '/currently-watching': typeof CurrentlyWatchingRoute
   '/downloads': typeof DownloadsRoute
   '/favourites': typeof FavouritesRoute
   '/home': typeof HomeRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/anime'
+    | '/currently-watching'
     | '/downloads'
     | '/favourites'
     | '/home'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/account'
+    | '/currently-watching'
     | '/downloads'
     | '/favourites'
     | '/home'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/anime'
+    | '/currently-watching'
     | '/downloads'
     | '/favourites'
     | '/home'
@@ -208,6 +220,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
   AnimeRoute: typeof AnimeRouteWithChildren
+  CurrentlyWatchingRoute: typeof CurrentlyWatchingRoute
   DownloadsRoute: typeof DownloadsRoute
   FavouritesRoute: typeof FavouritesRoute
   HomeRoute: typeof HomeRoute
@@ -267,6 +280,13 @@ declare module '@tanstack/react-router' {
       path: '/downloads'
       fullPath: '/downloads'
       preLoaderRoute: typeof DownloadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/currently-watching': {
+      id: '/currently-watching'
+      path: '/currently-watching'
+      fullPath: '/currently-watching'
+      preLoaderRoute: typeof CurrentlyWatchingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/anime': {
@@ -358,6 +378,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
   AnimeRoute: AnimeRouteWithChildren,
+  CurrentlyWatchingRoute: CurrentlyWatchingRoute,
   DownloadsRoute: DownloadsRoute,
   FavouritesRoute: FavouritesRoute,
   HomeRoute: HomeRoute,
