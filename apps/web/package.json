@@ -17,6 +17,7 @@
   "dependencies": {
     "@elysium/shared": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
+    "@tanstack/react-hotkeys": "^0.10.0",
     "@tanstack/react-query": "^5.90.12",
     "@tanstack/react-router": "^1.139.3",
     "@tanstack/react-table": "^8.21.3",

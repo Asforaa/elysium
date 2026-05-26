@@ -8,6 +8,7 @@ import type {
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { createPlayer } from '@videojs/react';
 import { Video, VideoSkin, videoFeatures } from '@videojs/react/video';
@@ -271,6 +272,22 @@ function App({
       setSidebarOpen(false);
     }
   }, [showingEpisodeRoute]);
+
+  useHotkey(
+    'Mod+K',
+    (event) => {
+      event.preventDefault();
+      setAnimeSearchFocusTick((tick) => tick + 1);
+    },
+    {
+      meta: {
+        description: 'Focus anime search',
+        name: 'Focus search',
+      },
+      preventDefault: true,
+      stopPropagation: true,
+    },
+  );
 
   const animeMetadataSearchQuery = useQuery({
     queryKey: ['metadata', 'anilist', 'search', trimmedAnimeQuery, animeSearchSort],
