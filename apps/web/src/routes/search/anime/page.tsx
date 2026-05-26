@@ -1,28 +1,28 @@
-import { createFileRoute } from '@tanstack/react-router';
-import App from '@/App';
+import { createFileRoute } from "@tanstack/react-router";
+import App from "@/App";
 import {
   DEFAULT_ANIME_SEARCH_SORT,
   fromAnimeSearchSortUrlValue,
   toAnimeSearchSortUrlValue,
-} from '@/lib/anime-search';
-import type { AnimeMetadataSeason } from '@elysium/shared';
+} from "@/lib/anime-search";
+import type { AnimeMetadataSeason } from "@elysium/shared";
 
 const ANIME_SEASONS: AnimeMetadataSeason[] = [
-  'WINTER',
-  'SPRING',
-  'SUMMER',
-  'FALL',
+  "WINTER",
+  "SPRING",
+  "SUMMER",
+  "FALL",
 ];
 
-export const Route = createFileRoute('/search/anime')({
+export const Route = createFileRoute("/search/anime/")({
   component: AnimeSearchRoute,
   validateSearch: (search) => ({
-    search: typeof search.search === 'string' ? search.search : '',
+    search: typeof search.search === "string" ? search.search : "",
     season: normalizeSeason(search.season),
     sort: search.sort
       ? String(search.sort)
       : toAnimeSearchSortUrlValue(DEFAULT_ANIME_SEARCH_SORT),
-    title: typeof search.title === 'string' ? search.title : undefined,
+    title: typeof search.title === "string" ? search.title : undefined,
     year: normalizeYear(search.year),
   }),
 });
@@ -43,7 +43,7 @@ function AnimeSearchRoute() {
 }
 
 function normalizeSeason(value: unknown) {
-  if (typeof value !== 'string') {
+  if (typeof value !== "string") {
     return undefined;
   }
 
@@ -57,7 +57,9 @@ function normalizeSeason(value: unknown) {
 function normalizeYear(value: unknown) {
   const normalized = Number(value);
 
-  return Number.isInteger(normalized) && normalized >= 1900 && normalized <= 3000
+  return Number.isInteger(normalized) &&
+    normalized >= 1900 &&
+    normalized <= 3000
     ? normalized
     : undefined;
 }

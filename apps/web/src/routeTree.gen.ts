@@ -9,181 +9,182 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WatchLaterRouteImport } from './routes/watch-later'
-import { Route as TvShowsRouteImport } from './routes/tv-shows'
-import { Route as MyListRouteImport } from './routes/my-list'
-import { Route as MoviesRouteImport } from './routes/movies'
-import { Route as HomeRouteImport } from './routes/home'
-import { Route as FavouritesRouteImport } from './routes/favourites'
-import { Route as DownloadsRouteImport } from './routes/downloads'
-import { Route as CurrentlyWatchingRouteImport } from './routes/currently-watching'
-import { Route as AnimeRouteImport } from './routes/anime'
-import { Route as AccountRouteImport } from './routes/account'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AnimeIndexRouteImport } from './routes/anime.index'
-import { Route as SearchAnimeRouteImport } from './routes/search.anime'
-import { Route as AnimeAnimeIdSlugRouteImport } from './routes/anime.$animeId.$slug'
-import { Route as AnimeAnimeIdSlugIndexRouteImport } from './routes/anime.$animeId.$slug.index'
-import { Route as AnimeAnimeIdSlugEpisodeEpisodeNumberRouteImport } from './routes/anime.$animeId.$slug.episode.$episodeNumber'
+import { Route as AnimeRouteRouteImport } from './routes/anime/route'
+import { Route as PageRouteImport } from './routes/page'
+import { Route as WatchLaterPageRouteImport } from './routes/watch-later/page'
+import { Route as TvShowsPageRouteImport } from './routes/tv-shows/page'
+import { Route as MyListPageRouteImport } from './routes/my-list/page'
+import { Route as MoviesPageRouteImport } from './routes/movies/page'
+import { Route as HomePageRouteImport } from './routes/home/page'
+import { Route as FavouritesPageRouteImport } from './routes/favourites/page'
+import { Route as DownloadsPageRouteImport } from './routes/downloads/page'
+import { Route as CurrentlyWatchingPageRouteImport } from './routes/currently-watching/page'
+import { Route as AnimePageRouteImport } from './routes/anime/page'
+import { Route as AccountPageRouteImport } from './routes/account/page'
+import { Route as SearchAnimePageRouteImport } from './routes/search/anime/page'
+import { Route as AnimeAnimeIdSlugRouteRouteImport } from './routes/anime/$animeId/$slug/route'
+import { Route as AnimeAnimeIdSlugPageRouteImport } from './routes/anime/$animeId/$slug/page'
+import { Route as AnimeAnimeIdSlugEpisodeEpisodeNumberPageRouteImport } from './routes/anime/$animeId/$slug/episode/$episodeNumber/page'
 
-const WatchLaterRoute = WatchLaterRouteImport.update({
-  id: '/watch-later',
-  path: '/watch-later',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TvShowsRoute = TvShowsRouteImport.update({
-  id: '/tv-shows',
-  path: '/tv-shows',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MyListRoute = MyListRouteImport.update({
-  id: '/my-list',
-  path: '/my-list',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MoviesRoute = MoviesRouteImport.update({
-  id: '/movies',
-  path: '/movies',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HomeRoute = HomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FavouritesRoute = FavouritesRouteImport.update({
-  id: '/favourites',
-  path: '/favourites',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DownloadsRoute = DownloadsRouteImport.update({
-  id: '/downloads',
-  path: '/downloads',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CurrentlyWatchingRoute = CurrentlyWatchingRouteImport.update({
-  id: '/currently-watching',
-  path: '/currently-watching',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AnimeRoute = AnimeRouteImport.update({
+const AnimeRouteRoute = AnimeRouteRouteImport.update({
   id: '/anime',
   path: '/anime',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AccountRoute = AccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
+const PageRoute = PageRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AnimeIndexRoute = AnimeIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AnimeRoute,
-} as any)
-const SearchAnimeRoute = SearchAnimeRouteImport.update({
-  id: '/search/anime',
-  path: '/search/anime',
+const WatchLaterPageRoute = WatchLaterPageRouteImport.update({
+  id: '/watch-later/',
+  path: '/watch-later/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AnimeAnimeIdSlugRoute = AnimeAnimeIdSlugRouteImport.update({
+const TvShowsPageRoute = TvShowsPageRouteImport.update({
+  id: '/tv-shows/',
+  path: '/tv-shows/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyListPageRoute = MyListPageRouteImport.update({
+  id: '/my-list/',
+  path: '/my-list/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MoviesPageRoute = MoviesPageRouteImport.update({
+  id: '/movies/',
+  path: '/movies/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomePageRoute = HomePageRouteImport.update({
+  id: '/home/',
+  path: '/home/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FavouritesPageRoute = FavouritesPageRouteImport.update({
+  id: '/favourites/',
+  path: '/favourites/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DownloadsPageRoute = DownloadsPageRouteImport.update({
+  id: '/downloads/',
+  path: '/downloads/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CurrentlyWatchingPageRoute = CurrentlyWatchingPageRouteImport.update({
+  id: '/currently-watching/',
+  path: '/currently-watching/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnimePageRoute = AnimePageRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AnimeRouteRoute,
+} as any)
+const AccountPageRoute = AccountPageRouteImport.update({
+  id: '/account/',
+  path: '/account/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchAnimePageRoute = SearchAnimePageRouteImport.update({
+  id: '/search/anime/',
+  path: '/search/anime/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnimeAnimeIdSlugRouteRoute = AnimeAnimeIdSlugRouteRouteImport.update({
   id: '/$animeId/$slug',
   path: '/$animeId/$slug',
-  getParentRoute: () => AnimeRoute,
+  getParentRoute: () => AnimeRouteRoute,
 } as any)
-const AnimeAnimeIdSlugIndexRoute = AnimeAnimeIdSlugIndexRouteImport.update({
+const AnimeAnimeIdSlugPageRoute = AnimeAnimeIdSlugPageRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AnimeAnimeIdSlugRoute,
+  getParentRoute: () => AnimeAnimeIdSlugRouteRoute,
 } as any)
-const AnimeAnimeIdSlugEpisodeEpisodeNumberRoute =
-  AnimeAnimeIdSlugEpisodeEpisodeNumberRouteImport.update({
-    id: '/episode/$episodeNumber',
-    path: '/episode/$episodeNumber',
-    getParentRoute: () => AnimeAnimeIdSlugRoute,
+const AnimeAnimeIdSlugEpisodeEpisodeNumberPageRoute =
+  AnimeAnimeIdSlugEpisodeEpisodeNumberPageRouteImport.update({
+    id: '/episode/$episodeNumber/',
+    path: '/episode/$episodeNumber/',
+    getParentRoute: () => AnimeAnimeIdSlugRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/account': typeof AccountRoute
-  '/anime': typeof AnimeRouteWithChildren
-  '/currently-watching': typeof CurrentlyWatchingRoute
-  '/downloads': typeof DownloadsRoute
-  '/favourites': typeof FavouritesRoute
-  '/home': typeof HomeRoute
-  '/movies': typeof MoviesRoute
-  '/my-list': typeof MyListRoute
-  '/tv-shows': typeof TvShowsRoute
-  '/watch-later': typeof WatchLaterRoute
-  '/search/anime': typeof SearchAnimeRoute
-  '/anime/': typeof AnimeIndexRoute
-  '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRouteWithChildren
-  '/anime/$animeId/$slug/': typeof AnimeAnimeIdSlugIndexRoute
-  '/anime/$animeId/$slug/episode/$episodeNumber': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRoute
+  '/': typeof PageRoute
+  '/anime': typeof AnimeRouteRouteWithChildren
+  '/account/': typeof AccountPageRoute
+  '/anime/': typeof AnimePageRoute
+  '/currently-watching/': typeof CurrentlyWatchingPageRoute
+  '/downloads/': typeof DownloadsPageRoute
+  '/favourites/': typeof FavouritesPageRoute
+  '/home/': typeof HomePageRoute
+  '/movies/': typeof MoviesPageRoute
+  '/my-list/': typeof MyListPageRoute
+  '/tv-shows/': typeof TvShowsPageRoute
+  '/watch-later/': typeof WatchLaterPageRoute
+  '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRouteRouteWithChildren
+  '/search/anime/': typeof SearchAnimePageRoute
+  '/anime/$animeId/$slug/': typeof AnimeAnimeIdSlugPageRoute
+  '/anime/$animeId/$slug/episode/$episodeNumber/': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberPageRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/account': typeof AccountRoute
-  '/currently-watching': typeof CurrentlyWatchingRoute
-  '/downloads': typeof DownloadsRoute
-  '/favourites': typeof FavouritesRoute
-  '/home': typeof HomeRoute
-  '/movies': typeof MoviesRoute
-  '/my-list': typeof MyListRoute
-  '/tv-shows': typeof TvShowsRoute
-  '/watch-later': typeof WatchLaterRoute
-  '/search/anime': typeof SearchAnimeRoute
-  '/anime': typeof AnimeIndexRoute
-  '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugIndexRoute
-  '/anime/$animeId/$slug/episode/$episodeNumber': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRoute
+  '/': typeof PageRoute
+  '/account': typeof AccountPageRoute
+  '/anime': typeof AnimePageRoute
+  '/currently-watching': typeof CurrentlyWatchingPageRoute
+  '/downloads': typeof DownloadsPageRoute
+  '/favourites': typeof FavouritesPageRoute
+  '/home': typeof HomePageRoute
+  '/movies': typeof MoviesPageRoute
+  '/my-list': typeof MyListPageRoute
+  '/tv-shows': typeof TvShowsPageRoute
+  '/watch-later': typeof WatchLaterPageRoute
+  '/search/anime': typeof SearchAnimePageRoute
+  '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugPageRoute
+  '/anime/$animeId/$slug/episode/$episodeNumber': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberPageRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/account': typeof AccountRoute
-  '/anime': typeof AnimeRouteWithChildren
-  '/currently-watching': typeof CurrentlyWatchingRoute
-  '/downloads': typeof DownloadsRoute
-  '/favourites': typeof FavouritesRoute
-  '/home': typeof HomeRoute
-  '/movies': typeof MoviesRoute
-  '/my-list': typeof MyListRoute
-  '/tv-shows': typeof TvShowsRoute
-  '/watch-later': typeof WatchLaterRoute
-  '/search/anime': typeof SearchAnimeRoute
-  '/anime/': typeof AnimeIndexRoute
-  '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRouteWithChildren
-  '/anime/$animeId/$slug/': typeof AnimeAnimeIdSlugIndexRoute
-  '/anime/$animeId/$slug/episode/$episodeNumber': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRoute
+  '/': typeof PageRoute
+  '/anime': typeof AnimeRouteRouteWithChildren
+  '/account/': typeof AccountPageRoute
+  '/anime/': typeof AnimePageRoute
+  '/currently-watching/': typeof CurrentlyWatchingPageRoute
+  '/downloads/': typeof DownloadsPageRoute
+  '/favourites/': typeof FavouritesPageRoute
+  '/home/': typeof HomePageRoute
+  '/movies/': typeof MoviesPageRoute
+  '/my-list/': typeof MyListPageRoute
+  '/tv-shows/': typeof TvShowsPageRoute
+  '/watch-later/': typeof WatchLaterPageRoute
+  '/anime/$animeId/$slug': typeof AnimeAnimeIdSlugRouteRouteWithChildren
+  '/search/anime/': typeof SearchAnimePageRoute
+  '/anime/$animeId/$slug/': typeof AnimeAnimeIdSlugPageRoute
+  '/anime/$animeId/$slug/episode/$episodeNumber/': typeof AnimeAnimeIdSlugEpisodeEpisodeNumberPageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/account'
     | '/anime'
-    | '/currently-watching'
-    | '/downloads'
-    | '/favourites'
-    | '/home'
-    | '/movies'
-    | '/my-list'
-    | '/tv-shows'
-    | '/watch-later'
-    | '/search/anime'
+    | '/account/'
     | '/anime/'
+    | '/currently-watching/'
+    | '/downloads/'
+    | '/favourites/'
+    | '/home/'
+    | '/movies/'
+    | '/my-list/'
+    | '/tv-shows/'
+    | '/watch-later/'
     | '/anime/$animeId/$slug'
+    | '/search/anime/'
     | '/anime/$animeId/$slug/'
-    | '/anime/$animeId/$slug/episode/$episodeNumber'
+    | '/anime/$animeId/$slug/episode/$episodeNumber/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/account'
+    | '/anime'
     | '/currently-watching'
     | '/downloads'
     | '/favourites'
@@ -193,200 +194,203 @@ export interface FileRouteTypes {
     | '/tv-shows'
     | '/watch-later'
     | '/search/anime'
-    | '/anime'
     | '/anime/$animeId/$slug'
     | '/anime/$animeId/$slug/episode/$episodeNumber'
   id:
     | '__root__'
     | '/'
-    | '/account'
     | '/anime'
-    | '/currently-watching'
-    | '/downloads'
-    | '/favourites'
-    | '/home'
-    | '/movies'
-    | '/my-list'
-    | '/tv-shows'
-    | '/watch-later'
-    | '/search/anime'
+    | '/account/'
     | '/anime/'
+    | '/currently-watching/'
+    | '/downloads/'
+    | '/favourites/'
+    | '/home/'
+    | '/movies/'
+    | '/my-list/'
+    | '/tv-shows/'
+    | '/watch-later/'
     | '/anime/$animeId/$slug'
+    | '/search/anime/'
     | '/anime/$animeId/$slug/'
-    | '/anime/$animeId/$slug/episode/$episodeNumber'
+    | '/anime/$animeId/$slug/episode/$episodeNumber/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AccountRoute: typeof AccountRoute
-  AnimeRoute: typeof AnimeRouteWithChildren
-  CurrentlyWatchingRoute: typeof CurrentlyWatchingRoute
-  DownloadsRoute: typeof DownloadsRoute
-  FavouritesRoute: typeof FavouritesRoute
-  HomeRoute: typeof HomeRoute
-  MoviesRoute: typeof MoviesRoute
-  MyListRoute: typeof MyListRoute
-  TvShowsRoute: typeof TvShowsRoute
-  WatchLaterRoute: typeof WatchLaterRoute
-  SearchAnimeRoute: typeof SearchAnimeRoute
+  PageRoute: typeof PageRoute
+  AnimeRouteRoute: typeof AnimeRouteRouteWithChildren
+  AccountPageRoute: typeof AccountPageRoute
+  CurrentlyWatchingPageRoute: typeof CurrentlyWatchingPageRoute
+  DownloadsPageRoute: typeof DownloadsPageRoute
+  FavouritesPageRoute: typeof FavouritesPageRoute
+  HomePageRoute: typeof HomePageRoute
+  MoviesPageRoute: typeof MoviesPageRoute
+  MyListPageRoute: typeof MyListPageRoute
+  TvShowsPageRoute: typeof TvShowsPageRoute
+  WatchLaterPageRoute: typeof WatchLaterPageRoute
+  SearchAnimePageRoute: typeof SearchAnimePageRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/watch-later': {
-      id: '/watch-later'
-      path: '/watch-later'
-      fullPath: '/watch-later'
-      preLoaderRoute: typeof WatchLaterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tv-shows': {
-      id: '/tv-shows'
-      path: '/tv-shows'
-      fullPath: '/tv-shows'
-      preLoaderRoute: typeof TvShowsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-list': {
-      id: '/my-list'
-      path: '/my-list'
-      fullPath: '/my-list'
-      preLoaderRoute: typeof MyListRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/movies': {
-      id: '/movies'
-      path: '/movies'
-      fullPath: '/movies'
-      preLoaderRoute: typeof MoviesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/home': {
-      id: '/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof HomeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/favourites': {
-      id: '/favourites'
-      path: '/favourites'
-      fullPath: '/favourites'
-      preLoaderRoute: typeof FavouritesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/downloads': {
-      id: '/downloads'
-      path: '/downloads'
-      fullPath: '/downloads'
-      preLoaderRoute: typeof DownloadsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/currently-watching': {
-      id: '/currently-watching'
-      path: '/currently-watching'
-      fullPath: '/currently-watching'
-      preLoaderRoute: typeof CurrentlyWatchingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/anime': {
       id: '/anime'
       path: '/anime'
       fullPath: '/anime'
-      preLoaderRoute: typeof AnimeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/account': {
-      id: '/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AccountRouteImport
+      preLoaderRoute: typeof AnimeRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof PageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/watch-later/': {
+      id: '/watch-later/'
+      path: '/watch-later'
+      fullPath: '/watch-later/'
+      preLoaderRoute: typeof WatchLaterPageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tv-shows/': {
+      id: '/tv-shows/'
+      path: '/tv-shows'
+      fullPath: '/tv-shows/'
+      preLoaderRoute: typeof TvShowsPageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-list/': {
+      id: '/my-list/'
+      path: '/my-list'
+      fullPath: '/my-list/'
+      preLoaderRoute: typeof MyListPageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/movies/': {
+      id: '/movies/'
+      path: '/movies'
+      fullPath: '/movies/'
+      preLoaderRoute: typeof MoviesPageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home/': {
+      id: '/home/'
+      path: '/home'
+      fullPath: '/home/'
+      preLoaderRoute: typeof HomePageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/favourites/': {
+      id: '/favourites/'
+      path: '/favourites'
+      fullPath: '/favourites/'
+      preLoaderRoute: typeof FavouritesPageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/downloads/': {
+      id: '/downloads/'
+      path: '/downloads'
+      fullPath: '/downloads/'
+      preLoaderRoute: typeof DownloadsPageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/currently-watching/': {
+      id: '/currently-watching/'
+      path: '/currently-watching'
+      fullPath: '/currently-watching/'
+      preLoaderRoute: typeof CurrentlyWatchingPageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/anime/': {
       id: '/anime/'
       path: '/'
       fullPath: '/anime/'
-      preLoaderRoute: typeof AnimeIndexRouteImport
-      parentRoute: typeof AnimeRoute
+      preLoaderRoute: typeof AnimePageRouteImport
+      parentRoute: typeof AnimeRouteRoute
     }
-    '/search/anime': {
-      id: '/search/anime'
+    '/account/': {
+      id: '/account/'
+      path: '/account'
+      fullPath: '/account/'
+      preLoaderRoute: typeof AccountPageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search/anime/': {
+      id: '/search/anime/'
       path: '/search/anime'
-      fullPath: '/search/anime'
-      preLoaderRoute: typeof SearchAnimeRouteImport
+      fullPath: '/search/anime/'
+      preLoaderRoute: typeof SearchAnimePageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/anime/$animeId/$slug': {
       id: '/anime/$animeId/$slug'
       path: '/$animeId/$slug'
       fullPath: '/anime/$animeId/$slug'
-      preLoaderRoute: typeof AnimeAnimeIdSlugRouteImport
-      parentRoute: typeof AnimeRoute
+      preLoaderRoute: typeof AnimeAnimeIdSlugRouteRouteImport
+      parentRoute: typeof AnimeRouteRoute
     }
     '/anime/$animeId/$slug/': {
       id: '/anime/$animeId/$slug/'
       path: '/'
       fullPath: '/anime/$animeId/$slug/'
-      preLoaderRoute: typeof AnimeAnimeIdSlugIndexRouteImport
-      parentRoute: typeof AnimeAnimeIdSlugRoute
+      preLoaderRoute: typeof AnimeAnimeIdSlugPageRouteImport
+      parentRoute: typeof AnimeAnimeIdSlugRouteRoute
     }
-    '/anime/$animeId/$slug/episode/$episodeNumber': {
-      id: '/anime/$animeId/$slug/episode/$episodeNumber'
+    '/anime/$animeId/$slug/episode/$episodeNumber/': {
+      id: '/anime/$animeId/$slug/episode/$episodeNumber/'
       path: '/episode/$episodeNumber'
-      fullPath: '/anime/$animeId/$slug/episode/$episodeNumber'
-      preLoaderRoute: typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRouteImport
-      parentRoute: typeof AnimeAnimeIdSlugRoute
+      fullPath: '/anime/$animeId/$slug/episode/$episodeNumber/'
+      preLoaderRoute: typeof AnimeAnimeIdSlugEpisodeEpisodeNumberPageRouteImport
+      parentRoute: typeof AnimeAnimeIdSlugRouteRoute
     }
   }
 }
 
-interface AnimeAnimeIdSlugRouteChildren {
-  AnimeAnimeIdSlugIndexRoute: typeof AnimeAnimeIdSlugIndexRoute
-  AnimeAnimeIdSlugEpisodeEpisodeNumberRoute: typeof AnimeAnimeIdSlugEpisodeEpisodeNumberRoute
+interface AnimeAnimeIdSlugRouteRouteChildren {
+  AnimeAnimeIdSlugPageRoute: typeof AnimeAnimeIdSlugPageRoute
+  AnimeAnimeIdSlugEpisodeEpisodeNumberPageRoute: typeof AnimeAnimeIdSlugEpisodeEpisodeNumberPageRoute
 }
 
-const AnimeAnimeIdSlugRouteChildren: AnimeAnimeIdSlugRouteChildren = {
-  AnimeAnimeIdSlugIndexRoute: AnimeAnimeIdSlugIndexRoute,
-  AnimeAnimeIdSlugEpisodeEpisodeNumberRoute:
-    AnimeAnimeIdSlugEpisodeEpisodeNumberRoute,
+const AnimeAnimeIdSlugRouteRouteChildren: AnimeAnimeIdSlugRouteRouteChildren = {
+  AnimeAnimeIdSlugPageRoute: AnimeAnimeIdSlugPageRoute,
+  AnimeAnimeIdSlugEpisodeEpisodeNumberPageRoute:
+    AnimeAnimeIdSlugEpisodeEpisodeNumberPageRoute,
 }
 
-const AnimeAnimeIdSlugRouteWithChildren =
-  AnimeAnimeIdSlugRoute._addFileChildren(AnimeAnimeIdSlugRouteChildren)
+const AnimeAnimeIdSlugRouteRouteWithChildren =
+  AnimeAnimeIdSlugRouteRoute._addFileChildren(
+    AnimeAnimeIdSlugRouteRouteChildren,
+  )
 
-interface AnimeRouteChildren {
-  AnimeIndexRoute: typeof AnimeIndexRoute
-  AnimeAnimeIdSlugRoute: typeof AnimeAnimeIdSlugRouteWithChildren
+interface AnimeRouteRouteChildren {
+  AnimePageRoute: typeof AnimePageRoute
+  AnimeAnimeIdSlugRouteRoute: typeof AnimeAnimeIdSlugRouteRouteWithChildren
 }
 
-const AnimeRouteChildren: AnimeRouteChildren = {
-  AnimeIndexRoute: AnimeIndexRoute,
-  AnimeAnimeIdSlugRoute: AnimeAnimeIdSlugRouteWithChildren,
+const AnimeRouteRouteChildren: AnimeRouteRouteChildren = {
+  AnimePageRoute: AnimePageRoute,
+  AnimeAnimeIdSlugRouteRoute: AnimeAnimeIdSlugRouteRouteWithChildren,
 }
 
-const AnimeRouteWithChildren = AnimeRoute._addFileChildren(AnimeRouteChildren)
+const AnimeRouteRouteWithChildren = AnimeRouteRoute._addFileChildren(
+  AnimeRouteRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AccountRoute: AccountRoute,
-  AnimeRoute: AnimeRouteWithChildren,
-  CurrentlyWatchingRoute: CurrentlyWatchingRoute,
-  DownloadsRoute: DownloadsRoute,
-  FavouritesRoute: FavouritesRoute,
-  HomeRoute: HomeRoute,
-  MoviesRoute: MoviesRoute,
-  MyListRoute: MyListRoute,
-  TvShowsRoute: TvShowsRoute,
-  WatchLaterRoute: WatchLaterRoute,
-  SearchAnimeRoute: SearchAnimeRoute,
+  PageRoute: PageRoute,
+  AnimeRouteRoute: AnimeRouteRouteWithChildren,
+  AccountPageRoute: AccountPageRoute,
+  CurrentlyWatchingPageRoute: CurrentlyWatchingPageRoute,
+  DownloadsPageRoute: DownloadsPageRoute,
+  FavouritesPageRoute: FavouritesPageRoute,
+  HomePageRoute: HomePageRoute,
+  MoviesPageRoute: MoviesPageRoute,
+  MyListPageRoute: MyListPageRoute,
+  TvShowsPageRoute: TvShowsPageRoute,
+  WatchLaterPageRoute: WatchLaterPageRoute,
+  SearchAnimePageRoute: SearchAnimePageRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
