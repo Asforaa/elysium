@@ -134,7 +134,8 @@ Homeserver media:
 - Store media paths relative to the media root whenever possible.
 - The seeded media root key is `homeserver-main`.
 - Treat existing media files as read-only source material until the user explicitly approves a dry-run rename/move plan.
-- Desired future structure is one top-level folder per real media entity, with a stable Elysium media ID in names once the ID format is finalized.
+- Desired future structure is one top-level folder per real media entity, with a stable simple Elysium media ID in names.
+- Current proposed human-facing Elysium ID format is `e000001`, `e000002`, etc.
 - Provider IDs such as AniList and MyAnimeList IDs should live as provider-link fields in the database, not as the primary entity identity.
 - Prefer AniList romaji titles for canonical anime folder and file names. Use English only when romaji is missing or clearly unusable.
 - Strip Arabic wording, source-site prefixes, short codes, and release-site noise from canonical folder and file names.
@@ -144,6 +145,10 @@ Homeserver media:
   - `bun run --filter @elysium/api library:scan`
   - It is dry-run/read-only for media files.
   - It writes private reports under ignored `/docs/import-reports`.
+- Local anime to AniList matcher CLI:
+  - `bun run --filter @elysium/api library:match-anilist`
+  - It is dry-run/read-only for media files.
+  - It writes private reports under ignored `/docs/match-reports`.
 
 Portless:
 
@@ -171,6 +176,9 @@ Provider smoke tests:
 - Media library scanner:
   - `bun run --filter @elysium/api library:scan`
 - This should scan the configured media root read-only and write private reports under ignored `/docs/import-reports`.
+- Local anime to AniList matcher:
+  - `bun run --filter @elysium/api library:match-anilist`
+- This should compare local anime groups with AniList romaji-first metadata and write private reports under ignored `/docs/match-reports`.
 
 Private docs:
 

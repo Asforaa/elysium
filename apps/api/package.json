@@ -22,6 +22,7 @@
     "db:status": "bash scripts/db-status.sh",
     "db:stop": "bash scripts/db-stop.sh",
     "downloads:finalize": "bun src/cli/finalize-downloads.ts",
+    "library:match-anilist": "bun src/cli/match-local-anime.ts",
     "library:scan": "bun src/cli/scan-media-library.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" || true",
     "lint:strict": "eslint \"{src,apps,libs,test}/**/*.ts\"",

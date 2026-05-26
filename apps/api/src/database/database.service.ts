@@ -394,4 +394,55 @@ const DATABASE_MIGRATIONS = [
       `,
     ],
   },
+  {
+    id: '005_elysium_entity_ids_and_external_links',
+    statements: [
+      `
+        create sequence if not exists media_entity_elysium_id_seq
+          as integer
+          start with 1
+          increment by 1
+      `,
+      `
+        alter table media_entities
+          add column if not exists elysium_id text,
+          add column if not exists title_romaji text,
+          add column if not exists title_english text,
+          add column if not exists title_native text,
+          add column if not exists format text,
+          add column if not exists episode_count integer
+      `,
+      `
+        update media_entities
+        set elysium_id = 'e' || lpad(nextval('media_entity_elysium_id_seq')::text, 6, '0')
+        where elysium_id is null
+      `,
+      `
+        alter table media_entities
+          alter column elysium_id set default 'e' || lpad(nextval('media_entity_elysium_id_seq')::text, 6, '0')
+      `,
+      `
+        create unique index if not exists media_entities_elysium_id_idx
+          on media_entities (elysium_id)
+      `,
+      `
+        create table if not exists media_external_ids (
+          id uuid primary key,
+          media_entity_id uuid not null references media_entities(id) on delete cascade,
+          provider text not null,
+          provider_id text not null,
+          provider_url text,
+          provider_payload jsonb,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now(),
+          unique (provider, provider_id),
+          unique (media_entity_id, provider, provider_id)
+        )
+      `,
+      `
+        create index if not exists media_external_ids_entity_idx
+          on media_external_ids (media_entity_id)
+      `,
+    ],
+  },
 ];
