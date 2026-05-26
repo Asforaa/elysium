@@ -3,6 +3,7 @@ import type {
   ChangeEvent,
   ComponentProps,
   FormEvent,
+  MouseEvent,
   SyntheticEvent,
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -160,6 +161,8 @@ const EMPTY_DOWNLOADED_ANIME: DownloadedAnime[] = [];
 const EMPTY_STREAMING_OPTIONS: StreamingOption[] = [];
 const EMPTY_PLAYBACK_PROGRESS: PlaybackProgress[] = [];
 const ELYSIUM_VIDEO_PLAYER = createPlayer({ features: videoFeatures });
+const SEEK_FEEDBACK_SECONDS = 10;
+const SEEK_FEEDBACK_TIMEOUT_MS = 650;
 const PROFILE_PHOTO_SIZE = 256;
 const PROFILE_PHOTO_QUALITY = 0.82;
 const MAX_PROFILE_PHOTO_SOURCE_BYTES = 10 * 1024 * 1024;
@@ -1310,6 +1313,12 @@ function EmptyRoutePage({ title }: { title: SidebarItemTitle }) {
 
 type VideoElementEventHandler = ComponentProps<'video'>['onTimeUpdate'];
 
+type SeekFeedback = {
+  direction: 'backward' | 'forward';
+  id: number;
+  seconds: number;
+};
+
 function ElysiumVideoPlayer({
   poster,
   src,
@@ -1325,30 +1334,118 @@ function ElysiumVideoPlayer({
   onPause?: VideoElementEventHandler;
   onTimeUpdate?: VideoElementEventHandler;
 }) {
+  const [seekFeedback, setSeekFeedback] = useState<SeekFeedback | null>(null);
+  const seekFeedbackTimeoutRef = useRef<number | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      if (seekFeedbackTimeoutRef.current) {
+        window.clearTimeout(seekFeedbackTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  function showSeekFeedback(direction: SeekFeedback['direction']) {
+    if (seekFeedbackTimeoutRef.current) {
+      window.clearTimeout(seekFeedbackTimeoutRef.current);
+    }
+
+    setSeekFeedback((current) => ({
+      direction,
+      id: (current?.id ?? 0) + 1,
+      seconds: SEEK_FEEDBACK_SECONDS,
+    }));
+    seekFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setSeekFeedback(null);
+      seekFeedbackTimeoutRef.current = undefined;
+    }, SEEK_FEEDBACK_TIMEOUT_MS);
+  }
+
+  function handleClickCapture(event: MouseEvent<HTMLDivElement>) {
+    const target = event.target;
+
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const seekButton = target.closest<HTMLButtonElement>(
+      '.media-button--seek[data-direction]',
+    );
+    const direction = seekButton?.dataset.direction;
+
+    if (direction === 'backward' || direction === 'forward') {
+      showSeekFeedback(direction);
+    }
+  }
+
   return (
-    <ELYSIUM_VIDEO_PLAYER.Provider>
-      <VideoSkin
-        className="h-full w-full"
-        poster={poster}
-        style={
-          {
-            '--media-border-radius': '0.375rem',
-            '--media-video-border-radius': '0.375rem',
-          } as ComponentProps<typeof VideoSkin>['style']
-        }
-      >
-        <Video
-          key={src}
-          playsInline
-          preload="metadata"
-          src={src}
-          onEnded={onEnded}
-          onLoadedMetadata={onLoadedMetadata}
-          onPause={onPause}
-          onTimeUpdate={onTimeUpdate}
-        />
-      </VideoSkin>
+    <ELYSIUM_VIDEO_PLAYER.Provider key={src}>
+      <div className="h-full w-full" onClickCapture={handleClickCapture}>
+        <VideoSkin
+          className="h-full w-full"
+          poster={poster}
+          style={
+            {
+              '--media-border-radius': '0.375rem',
+              '--media-video-border-radius': '0.375rem',
+            } as ComponentProps<typeof VideoSkin>['style']
+          }
+        >
+          <Video
+            key={src}
+            playsInline
+            preload="metadata"
+            src={src}
+            onEnded={onEnded}
+            onLoadedMetadata={onLoadedMetadata}
+            onPause={onPause}
+            onTimeUpdate={onTimeUpdate}
+          />
+          {seekFeedback ? <ElysiumSeekFeedback feedback={seekFeedback} /> : null}
+        </VideoSkin>
+      </div>
     </ELYSIUM_VIDEO_PLAYER.Provider>
+  );
+}
+
+function ElysiumSeekFeedback({ feedback }: { feedback: SeekFeedback }) {
+  return (
+    <div className="media-input-feedback">
+      <div
+        className="media-input-feedback-bubble"
+        data-direction={feedback.direction}
+        data-open=""
+        key={feedback.id}
+      >
+        <svg
+          aria-hidden="true"
+          className="media-icon media-icon--seek"
+          fill="none"
+          height="18"
+          viewBox="0 0 18 18"
+          width="18"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="m11.964 9.014-4.95-4.95m0 9.9 4.95-4.95"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="2"
+          />
+        </svg>
+        <div
+          className="media-time"
+          data-count="1"
+          data-direction={feedback.direction}
+          data-seektotal={String(feedback.seconds)}
+          data-value={`${feedback.seconds}s`}
+          data-open=""
+        >
+          {feedback.seconds}s
+        </div>
+      </div>
+    </div>
   );
 }
 
